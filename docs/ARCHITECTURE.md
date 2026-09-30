@@ -1,58 +1,82 @@
 # Architecture
 
-## Principles
-
-IAM Khata follows a layered, local-first design:
+## Layering
 
 ```
 app
- ├─ composition root / feature flags / platform security
- └─ feature:workspace
-       ├─ Compose UI
-       └─ ViewModel
-              ↓
-          core:data
-       repository + mutation/audit rules
-              ↓
-        core:database
-       Room entities + DAOs
-              ↓
-          SQLite
+ ├─ composition root
+ ├─ runtime feature flags / business policy
+ └─ top-level Khata / Inventory navigation
+       │
+       ├─ feature:workspace
+       │    └─ GUI tabular workbench
+       │
+       └─ feature:inventory
+            └─ inventory workflow UI
+                    ↓
+                core:data
+       ┌────────────┴────────────┐
+       │                         │
+DatasetRepository        InventoryRepository
+       │                         │
+       └──────────┬──────────────┘
+                  ↓
+             core:database
+          Room / SQLite / DAOs
+                  ↓
+            app-private DB
 
-core:model is dependency-light and shared upward.
+core:model contains dependency-light domain contracts and fixed-point rules.
 ```
 
-The UI never talks directly to a DAO. Database implementation details are hidden behind `DatasetRepository`.
+The UI never accesses a DAO directly.
 
-## Why the tabular model is separate from accounting
+## Two complementary data models
 
-A rigid 50-column ledger entity would make every new field a database migration. Instead, datasets have runtime schemas:
+The workbench remains schema-flexible: users can add business-specific columns without database migrations.
 
-- Dataset
-- Column metadata
-- Row identity/revision
-- Typed cell values
+Inventory is intentionally more strongly typed because stock quantity, document status and money require stricter invariants than an arbitrary table.
 
-Accounting-specific meaning is metadata (`ColumnRole`) rather than hard-coded table shape. This lets a ledger add columns such as vehicle, warehouse, salesman or commission without changing application binaries.
+The two domains meet through semantic ledger roles. Inventory posts to roles such as PARTY, PRODUCT, QUANTITY, DEBIT and CREDIT rather than assuming fixed column IDs or screen positions.
 
-## Heavy-data strategy
+## Transaction boundary
 
-The first storage engine is indexed SQLite through Room. Cells retain the original text and typed projections, allowing numeric/date operations without reparsing every record.
+Committing a sale/purchase is one Room transaction:
 
-Analytics is accessed through repository contracts and parameterized raw queries. A future columnar/OLAP engine can implement the same higher-level contract without rewriting the UI or canonical ledger store.
+1. Validate the tentative document.
+2. Validate products and fixed-point values.
+3. For sales, validate committed stock after protecting other reservations.
+4. Append immutable stock movements.
+5. Ensure the canonical ledger semantic columns exist.
+6. Append one Khata row per document line.
+7. Append an immediate-payment row when applicable.
+8. Mark the stock document COMMITTED.
+9. Append audit-chain events.
+
+Any exception rolls all steps back.
+
+## Tentative workflow
+
+Tentative documents never mutate physical/base stock and never post official accounting rows.
+
+They are intentionally visible in stock calculations:
+
+- tentative sale → reserved outgoing;
+- tentative purchase → projected incoming.
+
+This allows operational work to continue before fulfillment while keeping committed stock and accounting truthful.
 
 ## Feature isolation
 
-Capabilities are surfaced through `WorkspaceFeatures`. Disabling cleaning or pivoting removes those actions while leaving dataset browsing and entry usable. Future import, join, formula and sync features should follow the same pattern.
+Build/runtime flags currently include:
 
-## Mutation rules
+- cleaning
+- pivot
+- inventory
+- tentative stock
+- negative committed stock policy
+- screenshot protection
+- import/export (reserved)
+- cloud sync (reserved)
 
-All source-of-truth writes:
-
-1. validate at the repository boundary;
-2. run inside a Room transaction;
-3. update row revisions when applicable;
-4. append a tamper-evident audit event;
-5. avoid logging raw business data.
-
-Derived views and pivots do not rewrite source data.
+Disabling a feature does not invalidate the canonical dataset or stock journal.
