@@ -21,4 +21,5 @@ include(
     ":core:database",
     ":core:data",
     ":feature:workspace",
+    ":feature:inventory",
 )

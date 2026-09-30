@@ -12,11 +12,14 @@ android {
         applicationId = "com.auwire.iamkhata"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "3.0-data-workbench"
+        versionCode = 4
+        versionName = "4.0-integrated-stock"
 
         buildConfigField("boolean", "FEATURE_CLEANING", "true")
         buildConfigField("boolean", "FEATURE_PIVOT", "true")
+        buildConfigField("boolean", "FEATURE_INVENTORY", "true")
+        buildConfigField("boolean", "FEATURE_TENTATIVE_STOCK", "true")
+        buildConfigField("boolean", "ALLOW_NEGATIVE_COMMITTED_STOCK", "false")
         buildConfigField("boolean", "FEATURE_SCREENSHOT_PROTECTION", "true")
         buildConfigField("boolean", "FEATURE_IMPORT_EXPORT", "false")
         buildConfigField("boolean", "FEATURE_CLOUD_SYNC", "false")
@@ -53,6 +56,7 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:data"))
     implementation(project(":feature:workspace"))
+    implementation(project(":feature:inventory"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

@@ -3,7 +3,7 @@ package com.auwire.iamkhata.core.model
 /**
  * Optional semantic meaning attached to a column.
  *
- * Roles let accounting features understand a ledger without forcing every
+ * Roles let business features locate canonical fields without forcing every
  * dataset to have the same physical schema.
  */
 enum class ColumnRole {
@@ -11,8 +11,12 @@ enum class ColumnRole {
     DATE,
     PARTY,
     PARTICULARS,
+    PRODUCT,
+    SKU,
     QUANTITY,
     RATE,
     DEBIT,
     CREDIT,
+    REFERENCE,
+    STOCK_STATUS,
 }

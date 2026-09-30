@@ -43,6 +43,7 @@ class RoomDatasetRepository(
     private val analyticsDao = database.analyticsDao()
     private val auditDao = database.auditDao()
     private val auditWriter = AuditWriter(auditDao, signer)
+    private val ledgerWriter = LedgerRowWriter(database, auditWriter)
 
     override fun observeDatasets(): Flow<List<Dataset>> =
         datasetDao.observeDatasets().map { entities -> entities.map { it.toModel() } }
@@ -51,27 +52,7 @@ class RoomDatasetRepository(
         datasetDao.observeColumns(datasetId).map { entities -> entities.map { it.toModel() } }
 
     override suspend fun ensureDefaultLedger(): Long = database.withTransaction {
-        datasetDao.getDatasetByName(DEFAULT_LEDGER)?.id?.let { return@withTransaction it }
-
-        val now = System.currentTimeMillis()
-        val datasetId = datasetDao.insertDataset(
-            DatasetEntity(
-                name = DEFAULT_LEDGER,
-                kind = DatasetKind.LEDGER.name,
-                createdAt = now,
-                updatedAt = now,
-            ),
-        )
-
-        datasetDao.insertColumns(defaultLedgerColumns(datasetId))
-        auditWriter.append(
-            action = "CREATE_DATASET",
-            targetType = "DATASET",
-            targetId = datasetId.toString(),
-            payloadSummary = "kind=LEDGER;columns=7",
-            timestamp = now,
-        )
-        datasetId
+        ledgerWriter.ensureLedger()
     }
 
     override suspend fun createDataset(name: String, kind: DatasetKind): Long {
@@ -427,37 +408,6 @@ class RoomDatasetRepository(
             Aggregation.MAX -> "COALESCE(MAX(v.numericValue), 0.0)"
         }
 
-    private fun defaultLedgerColumns(datasetId: Long): List<ColumnEntity> {
-        data class Seed(
-            val name: String,
-            val type: ColumnType,
-            val role: ColumnRole,
-            val required: Boolean = false,
-            val isProtected: Boolean = false,
-        )
-
-        return listOf(
-            Seed("Date", ColumnType.DATE, ColumnRole.DATE, required = true, isProtected = true),
-            Seed("Party", ColumnType.TEXT, ColumnRole.PARTY),
-            Seed("Particulars", ColumnType.TEXT, ColumnRole.PARTICULARS, isProtected = true),
-            Seed("Quantity", ColumnType.DECIMAL, ColumnRole.QUANTITY),
-            Seed("Rate", ColumnType.CURRENCY, ColumnRole.RATE),
-            Seed("Debit", ColumnType.CURRENCY, ColumnRole.DEBIT, isProtected = true),
-            Seed("Credit", ColumnType.CURRENCY, ColumnRole.CREDIT, isProtected = true),
-        ).mapIndexed { index, seed ->
-            ColumnEntity(
-                datasetId = datasetId,
-                key = slug(seed.name),
-                displayName = seed.name,
-                type = seed.type.name,
-                role = seed.role.name,
-                position = index,
-                required = seed.required,
-                isProtected = seed.isProtected,
-            )
-        }
-    }
-
     private fun slug(value: String): String =
         value.lowercase(Locale.ROOT)
             .replace(Regex("[^a-z0-9]+"), "_")
@@ -509,7 +459,4 @@ class RoomDatasetRepository(
         booleanValue = booleanValue,
     )
 
-    companion object {
-        private const val DEFAULT_LEDGER = "Ledger"
-    }
 }
