@@ -14,7 +14,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "IAM-Khata"
+rootProject.name = "Auwire"
 include(
     ":app",
     ":core:model",
