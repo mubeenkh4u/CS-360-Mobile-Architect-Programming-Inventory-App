@@ -43,7 +43,7 @@ fun WorkspaceScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            "IAM Khata Data Workbench",
+            "Auwire",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
         )
