@@ -9,6 +9,7 @@ composeBom = "2024.12.01"
 room = "2.7.1"
 coroutines = "1.9.0"
 junit = "4.13.2"
+commonsCsv = "1.14.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -26,6 +27,7 @@ androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 junit = { module = "junit:junit", version.ref = "junit" }
+commons-csv = { module = "org.apache.commons:commons-csv", version.ref = "commonsCsv" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

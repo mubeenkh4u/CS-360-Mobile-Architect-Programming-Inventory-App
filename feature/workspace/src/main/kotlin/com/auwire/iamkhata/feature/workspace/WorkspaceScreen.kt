@@ -1,5 +1,7 @@
 package com.auwire.iamkhata.feature.workspace
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,106 +10,198 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.auwire.iamkhata.core.model.DataRow
+import com.auwire.iamkhata.core.model.ThemeMode
 import com.auwire.iamkhata.core.model.WorkspaceFeatures
+import com.auwire.iamkhata.core.ui.AuwireTopBar
+import kotlinx.coroutines.launch
 
-/** Main GUI surface for dynamic tabular data. */
+/**
+ * Khata workspace with a compact canvas and feature actions in a left drawer.
+ */
 @Composable
 fun WorkspaceScreen(
     viewModel: WorkspaceViewModel,
     features: WorkspaceFeatures,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val selectedRow = state.page.rows.firstOrNull { it.id == state.selectedRowId }
+    val context = LocalContext.current
+    val drawerState = androidx.compose.material3.rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
     var addColumnOpen by remember { mutableStateOf(false) }
-    var addRowOpen by remember { mutableStateOf(false) }
+    var editorOpen by remember { mutableStateOf(false) }
+    var editorRow by remember { mutableStateOf<DataRow?>(null) }
     var cleanOpen by remember { mutableStateOf(false) }
     var pivotOpen by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = modifier.fillMaxSize().padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(
-            "Auwire",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { addRowOpen = true }, enabled = state.columns.isNotEmpty()) {
-                Text("Add row")
-            }
-            OutlinedButton(onClick = { addColumnOpen = true }) { Text("Add column") }
-            if (features.cleaning) {
-                OutlinedButton(onClick = { cleanOpen = true }) { Text("Clean") }
-            }
-            if (features.pivot) {
-                OutlinedButton(onClick = { pivotOpen = true }) { Text("Pivot") }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv"),
+    ) { uri ->
+        if (uri != null) {
+            viewModel.exportCsv {
+                context.contentResolver.openOutputStream(uri, "wt")
             }
         }
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            viewModel.importCsv {
+                context.contentResolver.openInputStream(uri)
+            }
+        }
+    }
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = state.searchText,
-                onValueChange = viewModel::setSearchText,
-                label = { Text("Search all columns") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
+    fun closeDrawerThen(action: () -> Unit) {
+        scope.launch {
+            drawerState.close()
+            action()
+        }
+    }
+
+    ModalNavigationDrawer(
+        modifier = modifier,
+        drawerState = drawerState,
+        drawerContent = {
+            WorkspaceDrawer(
+                selectedRow = selectedRow,
+                features = features,
+                themeMode = themeMode,
+                onAddRow = {
+                    closeDrawerThen {
+                        editorRow = null
+                        editorOpen = true
+                    }
+                },
+                onEditRow = {
+                    closeDrawerThen {
+                        editorRow = selectedRow
+                        editorOpen = selectedRow != null && !selectedRow.isLocked
+                    }
+                },
+                onAddColumn = { closeDrawerThen { addColumnOpen = true } },
+                onClean = { closeDrawerThen { cleanOpen = true } },
+                onPivot = { closeDrawerThen { pivotOpen = true } },
+                onImportCsv = {
+                    closeDrawerThen {
+                        importLauncher.launch(CSV_MIME_TYPES)
+                    }
+                },
+                onExportCsv = {
+                    closeDrawerThen {
+                        exportLauncher.launch("Auwire-Khata.csv")
+                    }
+                },
+                onThemeModeChange = {
+                    onThemeModeChange(it)
+                    scope.launch { drawerState.close() }
+                },
             )
-            Button(onClick = viewModel::applySearch, modifier = Modifier.padding(top = 8.dp)) {
-                Text("Apply")
-            }
-        }
-
-        Text(
-            "Rows: ${state.page.totalRows}  •  Columns: ${state.columns.size}",
-            style = MaterialTheme.typography.bodySmall,
-        )
-
-        state.message?.let { message ->
-            Surface(
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                shape = MaterialTheme.shapes.small,
-                onClick = viewModel::clearMessage,
+        },
+    ) {
+        Scaffold(
+            topBar = {
+                AuwireTopBar(
+                    section = "Khata",
+                    onMenuClick = { scope.launch { drawerState.open() } },
+                )
+            },
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(message, Modifier.padding(8.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedTextField(
+                        value = state.searchText,
+                        onValueChange = viewModel::setSearchText,
+                        label = { Text("Search all columns") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(
+                        onClick = viewModel::applySearch,
+                        modifier = Modifier.padding(top = 8.dp),
+                    ) {
+                        Text("Apply")
+                    }
+                }
+
+                Text(
+                    buildString {
+                        append("Rows: ${state.page.totalRows} • Columns: ${state.columns.size}")
+                        selectedRow?.let {
+                            append(" • Selected #${it.id} [${if (it.isLocked) "LOCKED" else it.status.name}]")
+                        }
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                )
+
+                state.message?.let { message ->
+                    Surface(
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        shape = MaterialTheme.shapes.small,
+                        onClick = viewModel::clearMessage,
+                    ) {
+                        Text(message, Modifier.padding(8.dp))
+                    }
+                }
+
+                if (state.busy) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+
+                DataGrid(
+                    columns = state.columns,
+                    rows = state.page.rows,
+                    selectedRowId = state.selectedRowId,
+                    sortColumnId = state.sort?.columnId,
+                    sortDirection = state.sort?.direction,
+                    onSelectRow = viewModel::selectRow,
+                    onSort = viewModel::toggleSort,
+                    modifier = Modifier.weight(1f),
+                )
+
+                PaginationBar(
+                    offset = state.page.offset,
+                    pageSize = state.page.limit,
+                    loadedRows = state.page.rows.size,
+                    totalRows = state.page.totalRows,
+                    onPrevious = viewModel::previousPage,
+                    onNext = viewModel::nextPage,
+                )
             }
         }
-
-        if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-
-        DataGrid(
-            columns = state.columns,
-            rows = state.page.rows,
-            sortColumnId = state.sort?.columnId,
-            sortDirection = state.sort?.direction,
-            onSort = viewModel::toggleSort,
-            modifier = Modifier.weight(1f),
-        )
-
-        PaginationBar(
-            offset = state.page.offset,
-            pageSize = state.page.limit,
-            loadedRows = state.page.rows.size,
-            totalRows = state.page.totalRows,
-            onPrevious = viewModel::previousPage,
-            onNext = viewModel::nextPage,
-        )
     }
 
     if (addColumnOpen) {
@@ -119,13 +213,19 @@ fun WorkspaceScreen(
             },
         )
     }
-    if (addRowOpen) {
-        AddRowDialog(
+    if (editorOpen) {
+        RowEditorDialog(
             columns = state.columns,
-            onDismiss = { addRowOpen = false },
-            onAdd = {
-                viewModel.addRow(it)
-                addRowOpen = false
+            row = editorRow,
+            onDismiss = { editorOpen = false },
+            onSave = { values, status ->
+                val target = editorRow
+                if (target == null) {
+                    viewModel.addRow(values, status)
+                } else {
+                    viewModel.updateRow(target, values, status)
+                }
+                editorOpen = false
             },
         )
     }
@@ -153,3 +253,10 @@ fun WorkspaceScreen(
         PivotResultDialog(result = it, onDismiss = viewModel::dismissPivot)
     }
 }
+
+private val CSV_MIME_TYPES = arrayOf(
+    "text/csv",
+    "text/comma-separated-values",
+    "application/vnd.ms-excel",
+    "text/plain",
+)

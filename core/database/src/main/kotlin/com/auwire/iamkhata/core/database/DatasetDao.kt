@@ -2,6 +2,7 @@ package com.auwire.iamkhata.core.database
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
@@ -45,14 +46,45 @@ interface DatasetDao {
     @Insert
     suspend fun insertRow(row: RowEntity): Long
 
+    @Query("SELECT * FROM data_rows WHERE id = :rowId LIMIT 1")
+    suspend fun getRow(rowId: Long): RowEntity?
+
     @Query("SELECT * FROM data_rows WHERE id IN (:rowIds)")
     suspend fun getRows(rowIds: List<Long>): List<RowEntity>
 
     @Query("SELECT * FROM cells WHERE rowId IN (:rowIds)")
     suspend fun getCellsForRows(rowIds: List<Long>): List<CellEntity>
 
-    @Insert
+    @Query("SELECT * FROM cells WHERE rowId = :rowId")
+    suspend fun getCellsForRow(rowId: Long): List<CellEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCells(cells: List<CellEntity>)
+
+    @Query("DELETE FROM cells WHERE rowId = :rowId")
+    suspend fun deleteCellsForRow(rowId: Long): Int
+
+    /**
+     * Optimistic row update. Returning 0 means the row was changed elsewhere or
+     * is system-locked.
+     */
+    @Query(
+        """
+        UPDATE data_rows
+        SET status = :status,
+            revision = revision + 1,
+            updatedAt = :updatedAt
+        WHERE id = :rowId
+          AND revision = :expectedRevision
+          AND isLocked = 0
+        """
+    )
+    suspend fun updateEditableRow(
+        rowId: Long,
+        expectedRevision: Long,
+        status: String,
+        updatedAt: Long,
+    ): Int
 
     @Query("SELECT COUNT(*) FROM data_rows WHERE datasetId = :datasetId")
     suspend fun countRows(datasetId: Long): Long
@@ -60,35 +92,47 @@ interface DatasetDao {
     @Query("SELECT COUNT(*) FROM cells WHERE columnId = :columnId")
     suspend fun countCells(columnId: Long): Int
 
-    @Query("""
+    @Query(
+        """
         UPDATE cells
         SET rawValue = TRIM(rawValue),
             normalizedValue = LOWER(TRIM(rawValue))
         WHERE columnId = :columnId
-    """)
+          AND rowId IN (SELECT id FROM data_rows WHERE isLocked = 0)
+        """
+    )
     suspend fun trimColumn(columnId: Long): Int
 
-    @Query("""
+    @Query(
+        """
         UPDATE cells
         SET rawValue = LOWER(TRIM(rawValue)),
             normalizedValue = LOWER(TRIM(rawValue))
         WHERE columnId = :columnId
-    """)
+          AND rowId IN (SELECT id FROM data_rows WHERE isLocked = 0)
+        """
+    )
     suspend fun lowercaseColumn(columnId: Long): Int
 
-    @Query("""
+    @Query(
+        """
         UPDATE cells
         SET rawValue = UPPER(TRIM(rawValue)),
             normalizedValue = LOWER(TRIM(rawValue))
         WHERE columnId = :columnId
-    """)
+          AND rowId IN (SELECT id FROM data_rows WHERE isLocked = 0)
+        """
+    )
     suspend fun uppercaseColumn(columnId: Long): Int
 
-    @Query("""
+    @Query(
+        """
         UPDATE data_rows
         SET revision = revision + 1,
             updatedAt = :updatedAt
-        WHERE id IN (SELECT rowId FROM cells WHERE columnId = :columnId)
-    """)
+        WHERE isLocked = 0
+          AND id IN (SELECT rowId FROM cells WHERE columnId = :columnId)
+        """
+    )
     suspend fun touchRowsForColumn(columnId: Long, updatedAt: Long): Int
 }

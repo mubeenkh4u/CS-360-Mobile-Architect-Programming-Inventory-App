@@ -26,7 +26,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         StockDocumentLineEntity::class,
         StockMovementEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class IamDatabase : RoomDatabase() {
@@ -123,13 +123,54 @@ abstract class IamDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Adds editable-row lifecycle metadata.
+         *
+         * Existing rows remain FINAL. Rows already posted by inventory are
+         * detected by their semantic STOCK_STATUS cell and locked to preserve
+         * inventory ↔ Khata consistency.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE data_rows ADD COLUMN status TEXT NOT NULL DEFAULT 'FINAL'")
+                database.execSQL("ALTER TABLE data_rows ADD COLUMN origin TEXT NOT NULL DEFAULT 'MANUAL'")
+                database.execSQL("ALTER TABLE data_rows ADD COLUMN originRef TEXT")
+                database.execSQL("ALTER TABLE data_rows ADD COLUMN isLocked INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_data_rows_datasetId_status ON data_rows(datasetId, status)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_data_rows_isLocked ON data_rows(isLocked)")
+
+                database.execSQL(
+                    """
+                    UPDATE data_rows
+                    SET origin = 'STOCK_DOCUMENT',
+                        isLocked = 1,
+                        originRef = (
+                            SELECT ref.rawValue
+                            FROM cells ref
+                            JOIN dataset_columns refCol ON refCol.id = ref.columnId
+                            WHERE ref.rowId = data_rows.id
+                              AND refCol.role = 'REFERENCE'
+                            LIMIT 1
+                        )
+                    WHERE id IN (
+                        SELECT statusCell.rowId
+                        FROM cells statusCell
+                        JOIN dataset_columns statusCol ON statusCol.id = statusCell.columnId
+                        WHERE statusCol.role = 'STOCK_STATUS'
+                          AND UPPER(statusCell.rawValue) = 'COMMITTED'
+                    )
+                    """.trimIndent(),
+                )
+            }
+        }
+
         fun create(context: Context): IamDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
                 IamDatabase::class.java,
                 "iam_khata.db",
             )
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
                 .build()
     }

@@ -12,6 +12,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.auwire.iamkhata.core.model.ThemeMode
 import com.auwire.iamkhata.core.model.WorkspaceFeatures
 import com.auwire.iamkhata.feature.inventory.InventoryScreen
 import com.auwire.iamkhata.feature.inventory.InventoryViewModel
@@ -22,7 +23,11 @@ import com.auwire.iamkhata.feature.workspace.WorkspaceViewModelFactory
 
 /** Top-level feature switch; individual domains remain independently usable. */
 @Composable
-fun AppRoot(container: AppContainer) {
+fun AppRoot(
+    container: AppContainer,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
+) {
     val workspaceViewModel: WorkspaceViewModel = viewModel(
         factory = WorkspaceViewModelFactory(container.datasetRepository),
     )
@@ -31,6 +36,8 @@ fun AppRoot(container: AppContainer) {
         WorkspaceScreen(
             viewModel = workspaceViewModel,
             features = workspaceFeatures(),
+            themeMode = themeMode,
+            onThemeModeChange = onThemeModeChange,
         )
         return
     }
@@ -62,12 +69,17 @@ fun AppRoot(container: AppContainer) {
             0 -> WorkspaceScreen(
                 viewModel = workspaceViewModel,
                 features = workspaceFeatures(),
+                themeMode = themeMode,
+                onThemeModeChange = onThemeModeChange,
                 modifier = Modifier.padding(padding),
             )
 
             else -> InventoryScreen(
                 viewModel = inventoryViewModel,
                 tentativeStockEnabled = BuildConfig.FEATURE_TENTATIVE_STOCK,
+                importExportEnabled = BuildConfig.FEATURE_IMPORT_EXPORT,
+                themeMode = themeMode,
+                onThemeModeChange = onThemeModeChange,
                 modifier = Modifier.padding(padding),
             )
         }

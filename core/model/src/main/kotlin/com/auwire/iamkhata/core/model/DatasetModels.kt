@@ -42,11 +42,20 @@ data class CellValue(
     val booleanValue: Boolean? = null,
 )
 
-/** One logical row in a dataset. */
+/**
+ * One logical row in a dataset.
+ *
+ * System-owned rows (for example committed stock postings) are locked so a
+ * generic table editor cannot break cross-domain integrity.
+ */
 data class DataRow(
     val id: Long,
     val datasetId: Long,
     val revision: Long,
+    val status: RowStatus,
+    val origin: RowOrigin,
+    val originRef: String?,
+    val isLocked: Boolean,
     val values: Map<Long, CellValue>,
 )
 

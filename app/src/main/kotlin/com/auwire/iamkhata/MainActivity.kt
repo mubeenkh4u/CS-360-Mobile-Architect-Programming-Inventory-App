@@ -6,8 +6,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import com.auwire.iamkhata.ui.IamKhataTheme
+import com.auwire.iamkhata.ui.AuwireTheme
+import com.auwire.iamkhata.ui.ThemePreferences
 
 /** Single-activity host for independently configurable business features. */
 class MainActivity : ComponentActivity() {
@@ -19,10 +24,21 @@ class MainActivity : ComponentActivity() {
         }
 
         val container = (application as IamKhataApplication).container
+        val themePreferences = ThemePreferences(this)
+
         setContent {
-            IamKhataTheme {
+            var themeMode by remember { mutableStateOf(themePreferences.load()) }
+
+            AuwireTheme(themeMode = themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    AppRoot(container)
+                    AppRoot(
+                        container = container,
+                        themeMode = themeMode,
+                        onThemeModeChange = { mode ->
+                            themePreferences.save(mode)
+                            themeMode = mode
+                        },
+                    )
                 }
             }
         }

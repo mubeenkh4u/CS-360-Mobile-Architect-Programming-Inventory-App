@@ -10,13 +10,15 @@ import com.auwire.iamkhata.core.model.ColumnRole
 import com.auwire.iamkhata.core.model.ColumnType
 import com.auwire.iamkhata.core.model.DatasetKind
 import com.auwire.iamkhata.core.model.LedgerDefaults
+import com.auwire.iamkhata.core.model.RowOrigin
+import com.auwire.iamkhata.core.model.RowStatus
 import java.util.Locale
 
 /**
  * Internal bridge for atomic domain postings into the dynamic Khata dataset.
  *
- * Inventory does not depend on UI column IDs; it posts by semantic [ColumnRole].
- * Missing canonical columns are added non-destructively before a posting.
+ * Inventory posts by semantic [ColumnRole]. Generated rows are FINAL and
+ * system-locked so generic edits cannot desynchronize stock and accounting.
  */
 internal class LedgerRowWriter(
     private val database: IamDatabase,
@@ -95,6 +97,10 @@ internal class LedgerRowWriter(
                 datasetId = datasetId,
                 createdAt = timestamp,
                 updatedAt = timestamp,
+                status = RowStatus.FINAL.name,
+                origin = RowOrigin.STOCK_DOCUMENT.name,
+                originRef = auditTargetId,
+                isLocked = true,
             ),
         )
 

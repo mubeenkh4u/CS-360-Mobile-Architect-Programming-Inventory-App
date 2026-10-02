@@ -20,6 +20,7 @@ include(
     ":core:model",
     ":core:database",
     ":core:data",
+    ":core:ui",
     ":feature:workspace",
     ":feature:inventory",
 )

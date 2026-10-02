@@ -3,6 +3,7 @@ package com.auwire.iamkhata.feature.inventory
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.auwire.iamkhata.core.data.InventoryCsvTransfer
 import com.auwire.iamkhata.core.data.InventoryRepository
 import com.auwire.iamkhata.core.model.FixedPoint
 import com.auwire.iamkhata.core.model.StockDocument
@@ -10,6 +11,8 @@ import com.auwire.iamkhata.core.model.StockDocumentKind
 import com.auwire.iamkhata.core.model.StockDocumentRequest
 import com.auwire.iamkhata.core.model.StockLineInput
 import com.auwire.iamkhata.core.model.StockSnapshot
+import java.io.InputStream
+import java.io.OutputStream
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,10 +26,10 @@ data class InventoryUiState(
     val message: String? = null,
 )
 
-/** Coordinates inventory intents; Compose never talks directly to persistence. */
 class InventoryViewModel(
     private val repository: InventoryRepository,
 ) : ViewModel() {
+    private val transfer = InventoryCsvTransfer(repository)
     private val _state = MutableStateFlow(InventoryUiState())
     val state: StateFlow<InventoryUiState> = _state.asStateFlow()
 
@@ -125,11 +128,23 @@ class InventoryViewModel(
         "Tentative document cancelled."
     }
 
+    fun exportCsv(openOutput: () -> OutputStream?) = launchAction {
+        val output = requireNotNull(openOutput()) { "Unable to open export file." }
+        transfer.exportInventory(output).describe()
+    }
+
+    fun importCsv(openInput: () -> InputStream?) = launchAction {
+        val input = requireNotNull(openInput()) { "Unable to open import file." }
+        transfer.importInventory(input).describe()
+    }
+
     private fun launchAction(block: suspend () -> String) {
         viewModelScope.launch {
             _state.update { it.copy(busy = true, message = null) }
             runCatching { block() }
-                .onSuccess { message -> _state.update { it.copy(busy = false, message = message) } }
+                .onSuccess { message ->
+                    _state.update { it.copy(busy = false, message = message) }
+                }
                 .onFailure { error ->
                     _state.update {
                         it.copy(

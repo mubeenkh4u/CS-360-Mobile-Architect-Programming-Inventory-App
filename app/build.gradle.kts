@@ -12,8 +12,8 @@ android {
         applicationId = "com.auwire.iamkhata"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "4.0-integrated-stock"
+        versionCode = 5
+        versionName = "5.0-editable-data-transfer"
 
         buildConfigField("boolean", "FEATURE_CLEANING", "true")
         buildConfigField("boolean", "FEATURE_PIVOT", "true")
@@ -21,7 +21,7 @@ android {
         buildConfigField("boolean", "FEATURE_TENTATIVE_STOCK", "true")
         buildConfigField("boolean", "ALLOW_NEGATIVE_COMMITTED_STOCK", "false")
         buildConfigField("boolean", "FEATURE_SCREENSHOT_PROTECTION", "true")
-        buildConfigField("boolean", "FEATURE_IMPORT_EXPORT", "false")
+        buildConfigField("boolean", "FEATURE_IMPORT_EXPORT", "true")
         buildConfigField("boolean", "FEATURE_CLOUD_SYNC", "false")
     }
 

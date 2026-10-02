@@ -21,6 +21,8 @@ import com.auwire.iamkhata.core.model.FilterSpec
 import com.auwire.iamkhata.core.model.PivotCell
 import com.auwire.iamkhata.core.model.PivotResult
 import com.auwire.iamkhata.core.model.PivotSpec
+import com.auwire.iamkhata.core.model.RowOrigin
+import com.auwire.iamkhata.core.model.RowStatus
 import com.auwire.iamkhata.core.model.SortDirection
 import com.auwire.iamkhata.core.model.SortSpec
 import com.auwire.iamkhata.core.model.TablePage
@@ -124,51 +126,83 @@ class RoomDatasetRepository(
         }
     }
 
-    override suspend fun appendRow(datasetId: Long, values: Map<Long, String>): Long =
-        database.withTransaction {
-            val dataset = requireNotNull(datasetDao.getDataset(datasetId)) { "Dataset not found." }
-            val columns = datasetDao.getColumns(datasetId)
-            val columnById = columns.associateBy { it.id }
+    override suspend fun appendRow(
+        datasetId: Long,
+        values: Map<Long, String>,
+        status: RowStatus,
+        origin: RowOrigin,
+    ): Long = database.withTransaction {
+        val dataset = requireNotNull(datasetDao.getDataset(datasetId)) { "Dataset not found." }
+        val columns = datasetDao.getColumns(datasetId)
+        validateValues(columns, values, status)
 
-            require(values.keys.all(columnById::containsKey)) {
-                "One or more values target a column outside this dataset."
-            }
-            columns.filter { it.required }.forEach { column ->
-                require(!values[column.id].isNullOrBlank()) {
-                    "${column.displayName} is required."
-                }
-            }
+        val now = System.currentTimeMillis()
+        val rowId = datasetDao.insertRow(
+            RowEntity(
+                datasetId = datasetId,
+                createdAt = now,
+                updatedAt = now,
+                status = status.name,
+                origin = origin.name,
+            ),
+        )
 
-            val now = System.currentTimeMillis()
-            val rowId = datasetDao.insertRow(
-                RowEntity(
-                    datasetId = datasetId,
-                    createdAt = now,
-                    updatedAt = now,
-                ),
-            )
+        val cells = encodeCells(rowId, columns, values)
+        if (cells.isNotEmpty()) datasetDao.insertCells(cells)
 
-            val cells = values.mapNotNull { (columnId, raw) ->
-                if (raw.isBlank()) return@mapNotNull null
-                val column = requireNotNull(columnById[columnId])
-                require(column.type != ColumnType.FORMULA.name) {
-                    "Formula columns cannot accept direct input."
-                }
-                CellCodec.encode(raw, ColumnType.valueOf(column.type))
-                    .toEntity(rowId, columnId)
-            }
-            if (cells.isNotEmpty()) datasetDao.insertCells(cells)
+        datasetDao.updateDataset(dataset.copy(updatedAt = now))
+        auditWriter.append(
+            action = "APPEND_ROW",
+            targetType = "ROW",
+            targetId = rowId.toString(),
+            payloadSummary = "dataset=$datasetId;status=${status.name};origin=${origin.name};cells=${cells.size}",
+            timestamp = now,
+        )
+        rowId
+    }
 
-            datasetDao.updateDataset(dataset.copy(updatedAt = now))
-            auditWriter.append(
-                "APPEND_ROW",
-                "ROW",
-                rowId.toString(),
-                "dataset=$datasetId;cells=${cells.size}",
-                now,
-            )
-            rowId
+    override suspend fun updateRow(
+        datasetId: Long,
+        rowId: Long,
+        expectedRevision: Long,
+        values: Map<Long, String>,
+        status: RowStatus,
+    ): Long = database.withTransaction {
+        val dataset = requireNotNull(datasetDao.getDataset(datasetId)) { "Dataset not found." }
+        val row = requireNotNull(datasetDao.getRow(rowId)) { "Row not found." }
+        require(row.datasetId == datasetId) { "Row does not belong to this dataset." }
+        require(!row.isLocked) {
+            "This row is system-managed. Correct the originating business transaction instead."
         }
+
+        val columns = datasetDao.getColumns(datasetId)
+        validateValues(columns, values, status)
+
+        val now = System.currentTimeMillis()
+        val updated = datasetDao.updateEditableRow(
+            rowId = rowId,
+            expectedRevision = expectedRevision,
+            status = status.name,
+            updatedAt = now,
+        )
+        require(updated == 1) {
+            "The row changed before this edit was saved. Reload it and try again."
+        }
+
+        datasetDao.deleteCellsForRow(rowId)
+        val cells = encodeCells(rowId, columns, values)
+        if (cells.isNotEmpty()) datasetDao.insertCells(cells)
+        datasetDao.updateDataset(dataset.copy(updatedAt = now))
+
+        auditWriter.append(
+            action = "UPDATE_ROW",
+            targetType = "ROW",
+            targetId = rowId.toString(),
+            payloadSummary = "dataset=$datasetId;fromRevision=$expectedRevision;toRevision=${expectedRevision + 1};status=${status.name};cells=${cells.size}",
+            timestamp = now,
+        )
+        expectedRevision + 1
+    }
 
     override suspend fun loadPage(
         datasetId: Long,
@@ -202,6 +236,10 @@ class RoomDatasetRepository(
                     id = row.id,
                     datasetId = row.datasetId,
                     revision = row.revision,
+                    status = RowStatus.valueOf(row.status),
+                    origin = RowOrigin.valueOf(row.origin),
+                    originRef = row.originRef,
+                    isLocked = row.isLocked,
                     values = cellsByRow[rowId].orEmpty().associate {
                         it.columnId to it.toModel()
                     },
@@ -397,6 +435,69 @@ class RoomDatasetRepository(
         """.trimIndent()
 
         return SimpleSQLiteQuery(sql, args.toTypedArray())
+    }
+
+    private fun validateValues(
+        columns: List<ColumnEntity>,
+        values: Map<Long, String>,
+        status: RowStatus,
+    ) {
+        val byId = columns.associateBy { it.id }
+        require(values.keys.all(byId::containsKey)) {
+            "One or more values target a column outside this dataset."
+        }
+
+        if (status == RowStatus.FINAL) {
+            columns.filter { it.required }.forEach { column ->
+                require(!values[column.id].isNullOrBlank()) {
+                    "${column.displayName} is required before a row can be finalized."
+                }
+            }
+        }
+
+        values.forEach { (columnId, raw) ->
+            if (raw.isBlank()) return@forEach
+            val column = requireNotNull(byId[columnId])
+            val type = ColumnType.valueOf(column.type)
+            require(type != ColumnType.FORMULA) {
+                "Formula columns cannot accept direct input."
+            }
+            if (status == RowStatus.FINAL) {
+                requireEncodedValueIsValid(column, CellCodec.encode(raw, type))
+            }
+        }
+    }
+
+    private fun requireEncodedValueIsValid(column: ColumnEntity, value: CellValue) {
+        val valid = when (ColumnType.valueOf(column.type)) {
+            ColumnType.INTEGER,
+            ColumnType.DECIMAL,
+            ColumnType.CURRENCY,
+            ColumnType.PERCENTAGE -> value.numericValue != null
+
+            ColumnType.DATE,
+            ColumnType.DATETIME -> value.instantValue != null
+
+            ColumnType.BOOLEAN -> value.booleanValue != null
+            else -> true
+        }
+        require(valid) {
+            "${column.displayName} does not contain a valid ${column.type.lowercase()} value."
+        }
+    }
+
+    private fun encodeCells(
+        rowId: Long,
+        columns: List<ColumnEntity>,
+        values: Map<Long, String>,
+    ): List<CellEntity> {
+        val byId = columns.associateBy { it.id }
+        return values.mapNotNull { (columnId, raw) ->
+            if (raw.isBlank()) return@mapNotNull null
+            val column = requireNotNull(byId[columnId])
+            CellCodec.encode(raw, ColumnType.valueOf(column.type))
+                .toEntity(rowId, columnId)
+        }
     }
 
     private fun aggregateExpression(aggregation: Aggregation): String =

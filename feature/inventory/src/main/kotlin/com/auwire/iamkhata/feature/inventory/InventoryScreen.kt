@@ -1,11 +1,35 @@
 package com.auwire.iamkhata.feature.inventory
 
-import androidx.compose.foundation.layout.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -13,96 +37,155 @@ import com.auwire.iamkhata.core.model.FixedPoint
 import com.auwire.iamkhata.core.model.StockDocument
 import com.auwire.iamkhata.core.model.StockDocumentKind
 import com.auwire.iamkhata.core.model.StockSnapshot
+import com.auwire.iamkhata.core.model.ThemeMode
+import com.auwire.iamkhata.core.ui.AuwireTopBar
+import kotlinx.coroutines.launch
 
 /** Inventory workspace integrated with the canonical Khata ledger. */
 @Composable
 fun InventoryScreen(
     viewModel: InventoryViewModel,
     tentativeStockEnabled: Boolean,
+    importExportEnabled: Boolean,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val drawerState = androidx.compose.material3.rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
     var addProductOpen by remember { mutableStateOf(false) }
     var adjustOpen by remember { mutableStateOf(false) }
     var saleOpen by remember { mutableStateOf(false) }
     var purchaseOpen by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = modifier.fillMaxSize().padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(
-            "Inventory & Stock",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            "Committed stock is physical/base stock. Tentative sales reserve availability; tentative purchases increase projected incoming stock.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { addProductOpen = true }) { Text("Add product") }
-            OutlinedButton(
-                onClick = { adjustOpen = true },
-                enabled = state.stock.isNotEmpty(),
-            ) { Text("Adjust stock") }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv"),
+    ) { uri ->
+        if (uri != null) {
+            viewModel.exportCsv {
+                context.contentResolver.openOutputStream(uri, "wt")
+            }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = { saleOpen = true },
-                enabled = state.stock.isNotEmpty(),
-            ) { Text("New sale") }
-            Button(
-                onClick = { purchaseOpen = true },
-                enabled = state.stock.isNotEmpty(),
-            ) { Text("New purchase") }
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            viewModel.importCsv {
+                context.contentResolver.openInputStream(uri)
+            }
         }
+    }
 
-        state.message?.let { message ->
-            AssistChip(
-                onClick = viewModel::clearMessage,
-                label = { Text(message) },
+    fun closeDrawerThen(action: () -> Unit) {
+        scope.launch {
+            drawerState.close()
+            action()
+        }
+    }
+
+    ModalNavigationDrawer(
+        modifier = modifier,
+        drawerState = drawerState,
+        drawerContent = {
+            InventoryDrawer(
+                hasProducts = state.stock.isNotEmpty(),
+                importExportEnabled = importExportEnabled,
+                themeMode = themeMode,
+                onAddProduct = { closeDrawerThen { addProductOpen = true } },
+                onAdjustStock = { closeDrawerThen { adjustOpen = true } },
+                onNewSale = { closeDrawerThen { saleOpen = true } },
+                onNewPurchase = { closeDrawerThen { purchaseOpen = true } },
+                onImportCsv = {
+                    closeDrawerThen {
+                        importLauncher.launch(INVENTORY_CSV_MIME_TYPES)
+                    }
+                },
+                onExportCsv = {
+                    closeDrawerThen {
+                        exportLauncher.launch("Auwire-Inventory.csv")
+                    }
+                },
+                onThemeModeChange = {
+                    onThemeModeChange(it)
+                    scope.launch { drawerState.close() }
+                },
             )
-        }
-        if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            item {
-                Text(
-                    "Live stock",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+        },
+    ) {
+        Scaffold(
+            topBar = {
+                AuwireTopBar(
+                    section = "Inventory",
+                    onMenuClick = { scope.launch { drawerState.open() } },
                 )
-            }
-            if (state.stock.isEmpty()) {
-                item { Text("No products yet.") }
-            } else {
-                items(state.stock, key = { it.product.id }) { snapshot ->
-                    StockSnapshotCard(snapshot)
-                }
-            }
-
-            item {
-                Spacer(Modifier.height(8.dp))
+            },
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Text(
-                    "Tentative workflow",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    "Base stock is committed physical stock. Tentative sales reserve availability; tentative purchases add projected incoming stock.",
+                    style = MaterialTheme.typography.bodySmall,
                 )
-            }
-            if (state.tentativeDocuments.isEmpty()) {
-                item { Text("No tentative sales or purchases.") }
-            } else {
-                items(state.tentativeDocuments, key = StockDocument::id) { document ->
-                    TentativeDocumentCard(
-                        document = document,
-                        onCommit = { viewModel.commitDocument(document.id) },
-                        onCancel = { viewModel.cancelDocument(document.id) },
+
+                state.message?.let { message ->
+                    AssistChip(
+                        onClick = viewModel::clearMessage,
+                        label = { Text(message) },
                     )
+                }
+                if (state.busy) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item {
+                        Text(
+                            "Live stock",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    if (state.stock.isEmpty()) {
+                        item {
+                            Text("No products yet. Use ☰ → Add product or import inventory CSV.")
+                        }
+                    } else {
+                        items(state.stock, key = { it.product.id }) { snapshot ->
+                            StockSnapshotCard(snapshot)
+                        }
+                    }
+
+                    item {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Tentative workflow",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    if (state.tentativeDocuments.isEmpty()) {
+                        item { Text("No tentative sales or purchases.") }
+                    } else {
+                        items(state.tentativeDocuments, key = StockDocument::id) { document ->
+                            TentativeDocumentCard(
+                                document = document,
+                                onCommit = { viewModel.commitDocument(document.id) },
+                                onCancel = { viewModel.cancelDocument(document.id) },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -117,7 +200,7 @@ fun InventoryScreen(
             },
         )
     }
-    if (adjustOpen) {
+    if (adjustOpen && state.stock.isNotEmpty()) {
         AdjustStockDialog(
             stock = state.stock,
             onDismiss = { adjustOpen = false },
@@ -127,7 +210,7 @@ fun InventoryScreen(
             },
         )
     }
-    if (saleOpen) {
+    if (saleOpen && state.stock.isNotEmpty()) {
         StockDocumentDialog(
             kind = StockDocumentKind.SALE,
             stock = state.stock,
@@ -149,7 +232,7 @@ fun InventoryScreen(
             },
         )
     }
-    if (purchaseOpen) {
+    if (purchaseOpen && state.stock.isNotEmpty()) {
         StockDocumentDialog(
             kind = StockDocumentKind.PURCHASE,
             stock = state.stock,
@@ -176,12 +259,17 @@ fun InventoryScreen(
 @Composable
 private fun StockSnapshotCard(snapshot: StockSnapshot) {
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(
+            Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
             Text(
-                "${snapshot.product.name}  •  ${snapshot.product.sku}",
+                "${snapshot.product.name} • ${snapshot.product.sku}",
                 fontWeight = FontWeight.Bold,
             )
-            Text("Base / on hand: ${FixedPoint.quantityDecimal(snapshot.onHandMicros)} ${snapshot.product.unit}")
+            Text(
+                "Base / on hand: ${FixedPoint.quantityDecimal(snapshot.onHandMicros)} ${snapshot.product.unit}",
+            )
             Text("Reserved sales: ${FixedPoint.quantityDecimal(snapshot.reservedOutgoingMicros)}")
             Text("Tentative incoming: ${FixedPoint.quantityDecimal(snapshot.tentativeIncomingMicros)}")
             Text("Available to promise: ${FixedPoint.quantityDecimal(snapshot.availableToPromiseMicros)}")
@@ -204,7 +292,10 @@ private fun TentativeDocumentCard(
     onCancel: () -> Unit,
 ) {
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(
+            Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             Text(
                 "${document.kind.name} • ${document.reference}",
                 fontWeight = FontWeight.Bold,
@@ -219,3 +310,10 @@ private fun TentativeDocumentCard(
         }
     }
 }
+
+private val INVENTORY_CSV_MIME_TYPES = arrayOf(
+    "text/csv",
+    "text/comma-separated-values",
+    "application/vnd.ms-excel",
+    "text/plain",
+)
