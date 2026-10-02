@@ -7,7 +7,7 @@
         android:name=".IamKhataApplication"
         android:allowBackup="false"
         android:fullBackupContent="false"
-        android:label="IAM Khata"
+        android:label="Auwire"
         android:supportsRtl="true"
         android:theme="@style/Theme.IAMKhata"
         android:usesCleartextTraffic="false">
