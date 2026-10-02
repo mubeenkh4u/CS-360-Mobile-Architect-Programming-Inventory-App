@@ -1,6 +1,6 @@
-# IAM Khata Data Workbench
+# Auwire
 
-IAM Khata is a **local-first ledger + inventory data platform**. The Khata remains a flexible GUI-driven table, while inventory is a strongly governed business domain that posts into that ledger atomically.
+Auwire is a **local-first ledger + inventory data platform**. The Khata remains a flexible GUI-driven table, while inventory is a strongly governed business domain that posts into that ledger atomically.
 
 The original SNHU submission remains untouched under `Project-Files/`.
 
