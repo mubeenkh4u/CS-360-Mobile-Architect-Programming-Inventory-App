@@ -45,7 +45,12 @@ data class ColumnEntity(
     val isProtected: Boolean,
 )
 
-/** Stable row identity; values are stored separately as typed cells. */
+/**
+ * Stable row identity and lifecycle metadata.
+ *
+ * origin/isLocked protect rows whose source of truth lives in another domain,
+ * such as committed inventory documents.
+ */
 @Entity(
     tableName = "data_rows",
     foreignKeys = [
@@ -59,6 +64,8 @@ data class ColumnEntity(
     indices = [
         Index("datasetId"),
         Index(value = ["datasetId", "createdAt"]),
+        Index(value = ["datasetId", "status"]),
+        Index("isLocked"),
     ],
 )
 data class RowEntity(
@@ -67,6 +74,13 @@ data class RowEntity(
     val createdAt: Long,
     val updatedAt: Long,
     val revision: Long = 1,
+    @ColumnInfo(defaultValue = "'FINAL'")
+    val status: String = "FINAL",
+    @ColumnInfo(defaultValue = "'MANUAL'")
+    val origin: String = "MANUAL",
+    val originRef: String? = null,
+    @ColumnInfo(defaultValue = "0")
+    val isLocked: Boolean = false,
 )
 
 /**

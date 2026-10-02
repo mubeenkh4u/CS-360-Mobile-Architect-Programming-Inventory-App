@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,7 +32,7 @@ fun AuwireTopBar(
     )
 }
 
-/** Consistent drawer action with no implicit selection state. */
+/** Consistent drawer action with a visually disabled state when unavailable. */
 @Composable
 fun DrawerAction(
     label: String,
@@ -39,10 +40,20 @@ fun DrawerAction(
     onClick: () -> Unit,
 ) {
     NavigationDrawerItem(
-        label = { Text(label) },
+        label = {
+            Text(
+                text = label,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                },
+            )
+        },
         selected = false,
-        onClick = onClick,
-        enabled = enabled,
+        onClick = {
+            if (enabled) onClick()
+        },
     )
 }
 
