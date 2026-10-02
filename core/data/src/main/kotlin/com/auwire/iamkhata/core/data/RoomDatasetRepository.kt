@@ -155,7 +155,7 @@ class RoomDatasetRepository(
             action = "APPEND_ROW",
             targetType = "ROW",
             targetId = rowId.toString(),
-            payloadSummary = "dataset=$datasetId;status=${status.name};origin=${origin.name};cells=${cells.size}",
+            payloadSummary = "dataset=$datasetId;status=${status.name};origin=${origin.name};values=${cells.auditMaterial()}",
             timestamp = now,
         )
         rowId
@@ -177,6 +177,7 @@ class RoomDatasetRepository(
 
         val columns = datasetDao.getColumns(datasetId)
         validateValues(columns, values, status)
+        val before = datasetDao.getCellsForRow(rowId)
 
         val now = System.currentTimeMillis()
         val updated = datasetDao.updateEditableRow(
@@ -198,7 +199,7 @@ class RoomDatasetRepository(
             action = "UPDATE_ROW",
             targetType = "ROW",
             targetId = rowId.toString(),
-            payloadSummary = "dataset=$datasetId;fromRevision=$expectedRevision;toRevision=${expectedRevision + 1};status=${status.name};cells=${cells.size}",
+            payloadSummary = "dataset=$datasetId;fromRevision=$expectedRevision;toRevision=${expectedRevision + 1};status=${status.name};before=${before.auditMaterial()};after=${cells.auditMaterial()}",
             timestamp = now,
         )
         expectedRevision + 1
@@ -314,6 +315,7 @@ class RoomDatasetRepository(
                 JOIN cells rg ON rg.rowId = r.id
                 JOIN cells v ON v.rowId = r.id
                 WHERE r.datasetId = ?
+                  AND r.status = 'FINAL'
                   AND rg.columnId = ?
                   AND v.columnId = ?
                 GROUP BY rg.normalizedValue
@@ -334,6 +336,7 @@ class RoomDatasetRepository(
                 JOIN cells cg ON cg.rowId = r.id
                 JOIN cells v ON v.rowId = r.id
                 WHERE r.datasetId = ?
+                  AND r.status = 'FINAL'
                   AND rg.columnId = ?
                   AND cg.columnId = ?
                   AND v.columnId = ?
@@ -499,6 +502,14 @@ class RoomDatasetRepository(
                 .toEntity(rowId, columnId)
         }
     }
+
+    /**
+     * Canonical cell material is passed only to AuditWriter, which persists its
+     * SHA-256 hash rather than duplicating sensitive row contents.
+     */
+    private fun List<CellEntity>.auditMaterial(): String =
+        sortedBy { it.columnId }
+            .joinToString("|") { cell -> "${cell.columnId}=${cell.rawValue}" }
 
     private fun aggregateExpression(aggregation: Aggregation): String =
         when (aggregation) {
