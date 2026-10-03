@@ -1,0 +1,7 @@
+App: AWi&k
+Package: com.auwire.iamkhata
+Version name: 5.5-final-icon-assets
+Version code: 10
+Source commit: c5d910ccd667d006fc06478c7eb9fc470f11faa4
+Workflow run: https://github.com/mubeenkh4u/CS-360-Mobile-Architect-Programming-Inventory-App/actions/runs/37144332531
+APK: AWi-k-v5.5-final-icon-assets-vc10-c5d910c-release.apk
