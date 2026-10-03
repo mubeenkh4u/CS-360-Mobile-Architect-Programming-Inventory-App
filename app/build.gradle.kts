@@ -40,8 +40,8 @@ android {
         applicationId = "com.auwire.iamkhata"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "5.3-system-bars"
+        versionCode = 9
+        versionName = "5.4-inset-fix"
 
         buildConfigField("boolean", "FEATURE_CLEANING", "true")
         buildConfigField("boolean", "FEATURE_PIVOT", "true")
