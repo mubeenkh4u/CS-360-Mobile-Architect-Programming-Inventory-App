@@ -61,6 +61,14 @@ jobs:
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
 
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Auwire-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Build release APK
         run: gradle --no-daemon :app:assembleRelease
 
@@ -88,14 +96,6 @@ jobs:
         with:
           name: Android-signing-tools
           path: signing-tools/
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Auwire-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
 
