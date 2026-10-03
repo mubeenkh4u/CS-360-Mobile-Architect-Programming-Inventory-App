@@ -23,6 +23,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      AUWIRE_KEYSTORE_B64: ${{ secrets.AUWIRE_KEYSTORE_B64 }}
+      AUWIRE_STORE_PASSWORD: ${{ secrets.AUWIRE_STORE_PASSWORD }}
+      AUWIRE_KEY_ALIAS: ${{ secrets.AUWIRE_KEY_ALIAS }}
+      AUWIRE_KEY_PASSWORD: ${{ secrets.AUWIRE_KEY_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -63,3 +68,24 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Prepare release signing key
+        if: env.AUWIRE_KEYSTORE_B64 != ''
+        shell: bash
+        run: |
+          KEYSTORE_PATH="$RUNNER_TEMP/auwire-release-key.jks"
+          printf '%s' "$AUWIRE_KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          echo "AUWIRE_STORE_FILE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+
+      - name: Build signed release APK
+        if: env.AUWIRE_KEYSTORE_B64 != ''
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Upload signed release APK
+        if: env.AUWIRE_KEYSTORE_B64 != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: Auwire-signed-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 30

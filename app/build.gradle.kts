@@ -1,8 +1,43 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
+
+/*
+ * Release signing is deliberately external to source control.
+ *
+ * Local builds read keystore.properties. CI can provide the equivalent
+ * AUWIRE_* environment variables. If neither is configured, debug builds keep
+ * working and release builds simply remain unsigned.
+ */
+val signingPropertiesFile = rootProject.file("keystore.properties")
+val signingProperties = Properties().apply {
+    if (signingPropertiesFile.exists()) {
+        signingPropertiesFile.inputStream().use(::load)
+    }
+}
+
+fun nonBlank(value: String?): String? =
+    value?.trim()?.takeIf { it.isNotEmpty() }
+
+fun signingValue(propertyName: String, environmentName: String): String? =
+    nonBlank(signingProperties.getProperty(propertyName))
+        ?: nonBlank(System.getenv(environmentName))
+
+val releaseStoreFile = signingValue("storeFile", "AUWIRE_STORE_FILE")
+val releaseStorePassword = signingValue("storePassword", "AUWIRE_STORE_PASSWORD")
+val releaseKeyAlias = signingValue("keyAlias", "AUWIRE_KEY_ALIAS")
+val releaseKeyPassword = signingValue("keyPassword", "AUWIRE_KEY_PASSWORD")
+
+val releaseSigningConfigured = listOf(
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { !it.isNullOrBlank() }
 
 android {
     namespace = "com.auwire.iamkhata"
@@ -12,8 +47,8 @@ android {
         applicationId = "com.auwire.iamkhata"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "5.0-editable-data-transfer"
+        versionCode = 6
+        versionName = "5.1-ui-brand-signing"
 
         buildConfigField("boolean", "FEATURE_CLEANING", "true")
         buildConfigField("boolean", "FEATURE_PIVOT", "true")
@@ -30,8 +65,24 @@ android {
         buildConfig = true
     }
 
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            create("release") {
+                storeFile = rootProject.file(requireNotNull(releaseStoreFile))
+                storePassword = requireNotNull(releaseStorePassword)
+                keyAlias = requireNotNull(releaseKeyAlias)
+                keyPassword = requireNotNull(releaseKeyPassword)
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

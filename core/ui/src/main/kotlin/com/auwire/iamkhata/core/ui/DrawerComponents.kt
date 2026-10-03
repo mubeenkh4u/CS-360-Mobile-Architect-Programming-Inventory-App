@@ -1,35 +1,64 @@
 package com.auwire.iamkhata.core.ui
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.auwire.iamkhata.core.model.ThemeMode
 
-/** Shared Auwire top bar used by feature tabs. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Compact shared Auwire header.
+ *
+ * Material3 TopAppBar reserves a taller toolbar in addition to the status-bar
+ * inset. This explicit 48dp row keeps the safe status-bar inset while removing
+ * the visibly excessive blank space above the screen title on phones.
+ */
 @Composable
 fun AuwireTopBar(
     section: String,
     onMenuClick: () -> Unit,
 ) {
-    TopAppBar(
-        title = { Text("Auwire · $section") },
-        navigationIcon = {
-            TextButton(onClick = onMenuClick) {
-                Text("☰")
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding(),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(
+                    onClick = onMenuClick,
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                ) {
+                    Text("☰", style = MaterialTheme.typography.titleLarge)
+                }
+                Text(
+                    text = "Auwire · $section",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Medium,
+                )
             }
-        },
-    )
+        }
+    }
 }
 
 /** Consistent drawer action with a visually disabled state when unavailable. */
