@@ -40,8 +40,8 @@ android {
         applicationId = "com.auwire.iamkhata"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "5.4-inset-fix"
+        versionCode = 10
+        versionName = "5.5-final-icon-assets"
 
         buildConfigField("boolean", "FEATURE_CLEANING", "true")
         buildConfigField("boolean", "FEATURE_PIVOT", "true")

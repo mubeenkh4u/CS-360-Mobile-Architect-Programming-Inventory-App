@@ -7,9 +7,9 @@
         android:name=".IamKhataApplication"
         android:allowBackup="false"
         android:fullBackupContent="false"
-        android:icon="@drawable/auwire_launcher"
-        android:label="Auwire"
-        android:roundIcon="@drawable/auwire_launcher"
+        android:icon="@mipmap/ic_launcher"
+        android:label="AWi&amp;k"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.IAMKhata"
         android:usesCleartextTraffic="false">
