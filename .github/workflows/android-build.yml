@@ -61,6 +61,36 @@ jobs:
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
 
+      - name: Build release APK
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Package local signing tools
+        shell: bash
+        run: |
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0"
+          mkdir -p signing-tools/lib
+          cp "$BUILD_TOOLS/apksigner" signing-tools/
+          cp "$BUILD_TOOLS/zipalign" signing-tools/
+          cp "$BUILD_TOOLS/lib/apksigner.jar" signing-tools/lib/
+
+      - name: Upload unsigned release APK
+        if: env.AUWIRE_KEYSTORE_B64 == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: Auwire-unsigned-release-apk
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload signing tools
+        if: env.AUWIRE_KEYSTORE_B64 == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-signing-tools
+          path: signing-tools/
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -77,7 +107,7 @@ jobs:
           printf '%s' "$AUWIRE_KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
           echo "AUWIRE_STORE_FILE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
 
-      - name: Build signed release APK
+      - name: Rebuild signed release APK
         if: env.AUWIRE_KEYSTORE_B64 != ''
         run: gradle --no-daemon :app:assembleRelease
 
