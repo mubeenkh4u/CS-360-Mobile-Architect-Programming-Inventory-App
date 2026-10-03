@@ -21,11 +21,10 @@ import androidx.compose.ui.unit.dp
 import com.auwire.iamkhata.core.model.ThemeMode
 
 /**
- * Compact shared Auwire header.
+ * Compact shared AWi&k header.
  *
- * Material3 TopAppBar reserves a taller toolbar in addition to the status-bar
- * inset. This explicit 48dp row keeps the safe status-bar inset while removing
- * the visibly excessive blank space above the screen title on phones.
+ * MainActivity renders edge-to-edge. statusBarsPadding() therefore applies the
+ * system-bar inset exactly once, avoiding the previous double top padding.
  */
 @Composable
 fun AuwireTopBar(
@@ -41,7 +40,7 @@ fun AuwireTopBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
+                    .height(46.dp)
                     .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -52,7 +51,7 @@ fun AuwireTopBar(
                     Text("☰", style = MaterialTheme.typography.titleLarge)
                 }
                 Text(
-                    text = "Auwire · $section",
+                    text = "AWi&k · $section",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Medium,
                 )
@@ -61,7 +60,6 @@ fun AuwireTopBar(
     }
 }
 
-/** Consistent drawer action with a visually disabled state when unavailable. */
 @Composable
 fun DrawerAction(
     label: String,
@@ -86,7 +84,6 @@ fun DrawerAction(
     )
 }
 
-/** Shared persistent appearance selector for every feature drawer. */
 @Composable
 fun ThemeModeSection(
     themeMode: ThemeMode,

@@ -6,13 +6,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-/*
- * Release signing is deliberately external to source control.
- *
- * Local builds read keystore.properties. CI can provide the equivalent
- * AUWIRE_* environment variables. If neither is configured, debug builds keep
- * working and release builds simply remain unsigned.
- */
 val signingPropertiesFile = rootProject.file("keystore.properties")
 val signingProperties = Properties().apply {
     if (signingPropertiesFile.exists()) {
@@ -47,8 +40,8 @@ android {
         applicationId = "com.auwire.iamkhata"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "5.1-ui-brand-signing"
+        versionCode = 7
+        versionName = "5.2-awik-branding"
 
         buildConfigField("boolean", "FEATURE_CLEANING", "true")
         buildConfigField("boolean", "FEATURE_PIVOT", "true")

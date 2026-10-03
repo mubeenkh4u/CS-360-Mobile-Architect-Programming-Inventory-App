@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
@@ -18,6 +19,13 @@ import com.auwire.iamkhata.ui.ThemePreferences
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        /*
+         * Edge-to-edge makes the status-bar relationship explicit. Feature
+         * headers apply statusBarsPadding() once, eliminating the doubled inset
+         * visible in earlier builds.
+         */
+        enableEdgeToEdge()
 
         if (BuildConfig.FEATURE_SCREENSHOT_PROTECTION) {
             window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
