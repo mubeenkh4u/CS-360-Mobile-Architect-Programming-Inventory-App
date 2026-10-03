@@ -1,21 +1,22 @@
 package com.auwire.iamkhata.core.ui
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.auwire.iamkhata.core.model.ThemeMode
@@ -23,8 +24,9 @@ import com.auwire.iamkhata.core.model.ThemeMode
 /**
  * Compact shared AWi&k header.
  *
- * MainActivity renders edge-to-edge. statusBarsPadding() therefore applies the
- * system-bar inset exactly once, avoiding the previous double top padding.
+ * The status-bar inset is applied once. Visual header content is top-aligned
+ * directly beneath that inset, while the menu keeps a 48dp touch target that
+ * extends downward instead of creating blank space above the title.
  */
 @Composable
 fun AuwireTopBar(
@@ -32,30 +34,34 @@ fun AuwireTopBar(
     onMenuClick: () -> Unit,
 ) {
     Surface(color = MaterialTheme.colorScheme.surface) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding(),
+            verticalAlignment = Alignment.Top,
         ) {
-            Row(
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp)
-                    .padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .size(48.dp)
+                    .clickable(
+                        role = Role.Button,
+                        onClick = onMenuClick,
+                    ),
+                contentAlignment = Alignment.TopCenter,
             ) {
-                TextButton(
-                    onClick = onMenuClick,
-                    contentPadding = PaddingValues(horizontal = 8.dp),
-                ) {
-                    Text("☰", style = MaterialTheme.typography.titleLarge)
-                }
                 Text(
-                    text = "AWi&k · $section",
+                    text = "☰",
+                    modifier = Modifier.padding(top = 1.dp),
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Medium,
                 )
             }
+
+            Text(
+                text = "AWi&k · $section",
+                modifier = Modifier.padding(top = 1.dp),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Medium,
+            )
         }
     }
 }
