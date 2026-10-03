@@ -21,3 +21,26 @@ short-lived GitHub Actions artifacts to avoid unnecessarily bloating repository
 history.
 
 Do not manually edit generated build files.
+
+
+## GitHub Releases and tags
+
+Every successful signed build from the current feature branch is also published
+under the repository's **Releases** page.
+
+Release tags use both Android version fields:
+
+```text
+v<version-name>-vc<version-code>
+```
+
+For example:
+
+```text
+v5.5-final-icon-assets-vc10
+```
+
+The release contains the signed APK, its SHA-256 checksum, and the build metadata
+file. A tag is immutable for a source revision: if the same tag already points
+to a different commit, the workflow fails and requires the application version
+to be incremented rather than silently moving a published release tag.
