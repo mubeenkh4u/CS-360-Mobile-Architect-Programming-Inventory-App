@@ -220,19 +220,22 @@ jobs:
           INFO_NAME="AWi-k-v$SAFE_NAME-vc$VERSION_CODE-$SHORT_SHA-build.txt"
           NOTES_FILE="$RUNNER_TEMP/awik-release-notes.md"
 
-          APK_SHA256="$(awk '{print $1}' "$BUILD_DIR/$CHECKSUM_NAME")"
+          write_notes() {
+            SOURCE_SHA="$1"
+            APK_SHA256="$2"
 
-          cat > "$NOTES_FILE" <<EOF
+            cat > "$NOTES_FILE" <<EOF
           ## AWi&k $VERSION_NAME
 
-          - **Package:** `com.auwire.iamkhata`
-          - **Version name:** `$VERSION_NAME`
-          - **Version code:** `$VERSION_CODE`
-          - **Source commit:** `$GITHUB_SHA`
-          - **APK SHA-256:** `$APK_SHA256`
+          - **Package:** com.auwire.iamkhata
+          - **Version name:** $VERSION_NAME
+          - **Version code:** $VERSION_CODE
+          - **Source commit:** $SOURCE_SHA
+          - **APK SHA-256:** $APK_SHA256
 
           This release APK is signed with the permanent AWi&k release signing identity.
           EOF
+          }
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             REF_TYPE="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.type')"
@@ -243,14 +246,37 @@ jobs:
             fi
 
             if [ "$REF_SHA" != "$GITHUB_SHA" ]; then
-              echo "Release tag $TAG already points to $REF_SHA, not $GITHUB_SHA."
-              echo "Bump versionName/versionCode before publishing a different source commit."
-              exit 1
+              # Published version tags are immutable. If only build automation
+              # changed without an Android version bump, repair release metadata
+              # from the already-published source instead of moving the tag.
+              EXISTING_SHORT="${REF_SHA::7}"
+              EXISTING_APK_NAME="AWi-k-v$SAFE_NAME-vc$VERSION_CODE-$EXISTING_SHORT-release.apk"
+              EXISTING_CHECKSUM="$BUILD_DIR/$EXISTING_APK_NAME.sha256"
+
+              if [ ! -f "$EXISTING_CHECKSUM" ]; then
+                echo "Release tag $TAG points to $REF_SHA, but its archived checksum is missing."
+                echo "Bump versionName/versionCode before publishing a different app source."
+                exit 1
+              fi
+
+              EXISTING_SHA256="$(awk '{print $1}' "$EXISTING_CHECKSUM")"
+              write_notes "$REF_SHA" "$EXISTING_SHA256"
+
+              gh release edit "$TAG"                 --repo "$GITHUB_REPOSITORY"                 --title "$RELEASE_TITLE"                 --notes-file "$NOTES_FILE"
+
+              echo "Kept immutable release tag $TAG at $REF_SHA and refreshed its metadata."
+              exit 0
             fi
+
+            APK_SHA256="$(awk '{print $1}' "$BUILD_DIR/$CHECKSUM_NAME")"
+            write_notes "$GITHUB_SHA" "$APK_SHA256"
 
             gh release upload "$TAG"               "$BUILD_DIR/$APK_NAME"               "$BUILD_DIR/$CHECKSUM_NAME"               "$BUILD_DIR/$INFO_NAME"               --repo "$GITHUB_REPOSITORY"               --clobber
 
             gh release edit "$TAG"               --repo "$GITHUB_REPOSITORY"               --title "$RELEASE_TITLE"               --notes-file "$NOTES_FILE"
           else
+            APK_SHA256="$(awk '{print $1}' "$BUILD_DIR/$CHECKSUM_NAME")"
+            write_notes "$GITHUB_SHA" "$APK_SHA256"
+
             gh release create "$TAG"               "$BUILD_DIR/$APK_NAME"               "$BUILD_DIR/$CHECKSUM_NAME"               "$BUILD_DIR/$INFO_NAME"               --repo "$GITHUB_REPOSITORY"               --target "$GITHUB_SHA"               --title "$RELEASE_TITLE"               --notes-file "$NOTES_FILE"               --latest
           fi
