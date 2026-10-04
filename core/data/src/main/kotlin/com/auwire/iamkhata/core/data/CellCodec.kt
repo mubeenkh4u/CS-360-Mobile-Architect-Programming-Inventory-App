@@ -21,7 +21,6 @@ object CellCodec {
         DateTimeFormatter.ISO_LOCAL_DATE,
         DateTimeFormatter.ofPattern("d/M/uuuu"),
         DateTimeFormatter.ofPattern("M/d/uuuu"),
-        DateTimeFormatter.ofPattern("d-M/uuuu"),
         DateTimeFormatter.ofPattern("d-M-uuuu"),
     )
 
@@ -74,11 +73,11 @@ object CellCodec {
         if (value.isBlank()) return null
 
         val sanitized = value
-            .replace(Regex("(?i)rs\.?"), "")
+            .replace(Regex("(?i)rs\\.?"), "")
             .replace(",", "")
             .replace("/-", "")
             .replace("%", "")
-            .replace(Regex("\s+"), "")
+            .replace(Regex("\\s+"), "")
 
         return sanitized.toDoubleOrNull()
     }
