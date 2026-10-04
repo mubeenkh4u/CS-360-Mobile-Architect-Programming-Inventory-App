@@ -98,7 +98,12 @@ interface DatasetDao {
         SET rawValue = TRIM(rawValue),
             normalizedValue = LOWER(TRIM(rawValue))
         WHERE columnId = :columnId
-          AND rowId IN (SELECT id FROM data_rows WHERE isLocked = 0)
+          AND rowId IN (
+              SELECT id
+              FROM data_rows
+              WHERE isLocked = 0
+                AND status = 'DRAFT'
+          )
         """
     )
     suspend fun trimColumn(columnId: Long): Int
@@ -109,7 +114,12 @@ interface DatasetDao {
         SET rawValue = LOWER(TRIM(rawValue)),
             normalizedValue = LOWER(TRIM(rawValue))
         WHERE columnId = :columnId
-          AND rowId IN (SELECT id FROM data_rows WHERE isLocked = 0)
+          AND rowId IN (
+              SELECT id
+              FROM data_rows
+              WHERE isLocked = 0
+                AND status = 'DRAFT'
+          )
         """
     )
     suspend fun lowercaseColumn(columnId: Long): Int
@@ -120,7 +130,12 @@ interface DatasetDao {
         SET rawValue = UPPER(TRIM(rawValue)),
             normalizedValue = LOWER(TRIM(rawValue))
         WHERE columnId = :columnId
-          AND rowId IN (SELECT id FROM data_rows WHERE isLocked = 0)
+          AND rowId IN (
+              SELECT id
+              FROM data_rows
+              WHERE isLocked = 0
+                AND status = 'DRAFT'
+          )
         """
     )
     suspend fun uppercaseColumn(columnId: Long): Int
@@ -131,6 +146,7 @@ interface DatasetDao {
         SET revision = revision + 1,
             updatedAt = :updatedAt
         WHERE isLocked = 0
+          AND status = 'DRAFT'
           AND id IN (SELECT rowId FROM cells WHERE columnId = :columnId)
         """
     )

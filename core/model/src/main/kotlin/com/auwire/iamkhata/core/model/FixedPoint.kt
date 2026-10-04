@@ -32,6 +32,24 @@ object FixedPoint {
         prefix + moneyDecimal(minor)
 
     /**
+     * Formats a signed ledger balance without exposing negative currency to the
+     * user. Positive means receivable (DR), negative means payable (CR).
+     */
+    fun balanceDisplay(signedMinor: Long, prefix: String = "Rs. "): String {
+        val magnitude = BigDecimal.valueOf(signedMinor)
+            .abs()
+            .divide(BigDecimal.valueOf(MONEY_SCALE))
+            .setScale(2, RoundingMode.UNNECESSARY)
+            .toPlainString()
+
+        return when {
+            signedMinor > 0L -> "$prefix$magnitude DR"
+            signedMinor < 0L -> "$prefix$magnitude CR"
+            else -> "$prefix$magnitude"
+        }
+    }
+
+    /**
      * Computes quantity × rate using integer-backed decimal arithmetic and
      * returns the result in minor currency units.
      */

@@ -4,104 +4,107 @@
 
 ```
 app
- ├─ composition root
- ├─ runtime feature flags / business policy
- ├─ persistent appearance preference
- └─ top-level Khata / Inventory navigation
-       │
-       ├─ feature:workspace
-       │    └─ GUI tabular workbench + CSV file picker
-       │
-       ├─ feature:inventory
-       │    └─ inventory workflow UI + CSV file picker
-       │
-       └─ core:ui
-            └─ shared Auwire top bar / drawer / appearance controls
-                    ↓
-                core:data
-       ┌────────────┴────────────┐
-       │                         │
-DatasetRepository        InventoryRepository
-       │                         │
-       ├─ DatasetCsvTransfer     ├─ InventoryCsvTransfer
-       │                         │
-       └──────────┬──────────────┘
-                  ↓
-             core:database
-          Room / SQLite / DAOs
-                  ↓
-            app-private DB
+  -> feature:workspace (Khata UI)
+  -> feature:inventory (Inventory UI)
+  -> core:ui
+       |
+       v
+core:data
+  -> DatasetRepository
+  -> InventoryRepository
+  -> CSV transfer services
+       |
+       v
+core:database
+  -> Room / SQLite / DAOs
+       |
+       v
+app-private database
 
 core:model contains dependency-light domain contracts and fixed-point rules.
 ```
 
 Feature UI never accesses a DAO directly.
 
-## Editable row lifecycle
+## Posted-row lifecycle
 
-Manual and imported workbench rows use:
+User-managed rows follow a one-way posting model:
 
 ```
-DRAFT → edit/review → FINAL
-          ↑          │
-          └── edit ──┘
+DRAFT -> FINAL
+          |  \
+          |   -> VOID
+          |
+          -> REVERSED + REVERSAL row
 ```
 
-Draft rows may be incomplete or temporarily contain values that do not yet parse to their declared type. Finalization validates required fields and typed values.
+- A DRAFT may be incomplete and may stay DRAFT until ready.
+- Finalization validates required and typed fields.
+- A FINAL correction updates the same row, increments revision, and stays FINAL.
+- FINAL -> DRAFT is rejected at the repository boundary.
+- VOID preserves the row/audit trail but removes it from official analytics.
+- REVERSE marks the original REVERSED and creates a locked FINAL counter-entry with swapped Debit/Credit.
+- Inventory rows remain system-owned and locked.
 
-Updates use optimistic revision matching. A stale editor receives a conflict instead of overwriting a newer row. Each successful update increments the revision and appends a chained audit event.
+All lifecycle mutations use optimistic revision matching and Room transactions.
 
-Rows produced from committed stock documents are `STOCK_DOCUMENT` origin and `isLocked=true`. Generic table editing refuses those rows, preserving the stock/accounting transaction boundary.
+## Running-balance boundary
 
-## Two complementary data models
+Balance is **derived**, not stored as a mutable cell.
 
-The workbench remains schema-flexible: users can add business-specific columns without database migrations.
+For each official ledger row:
 
-Inventory is strongly typed because stock quantity, document status and money require stricter invariants than an arbitrary table.
+```
+delta = debitMinor - creditMinor
+balance = running SUM(delta) partitioned by normalized Party
+```
 
-The domains meet through semantic ledger roles rather than hard-coded column IDs.
+Accounting order is:
 
-## Transaction boundary
+1. Date
+2. createdAt
+3. row ID
 
-Committing a sale/purchase is one Room transaction:
+The running window is calculated across the complete official ledger before UI paging/filtering. Therefore search, sorting, and moving between pages never alter historical balances.
 
-1. Validate the document and products.
-2. Validate fixed-point quantities and money.
-3. For sales, protect stock reserved by other tentative sales.
-4. Append immutable stock movements.
-5. Ensure canonical ledger semantic columns exist.
-6. Append locked FINAL Khata rows.
-7. Append an immediate-payment row when applicable.
-8. Mark the stock document COMMITTED.
-9. Append chained audit events.
+Official balance membership:
+- FINAL: included
+- REVERSED: included
+- REVERSAL row: included because it is FINAL
+- DRAFT: excluded
+- VOID: excluded
 
-Any exception rolls all steps back.
+## Exact money
 
-## File transfer boundary
+Generic analytical columns still retain their numeric projection, but CURRENCY cells also store `moneyMinorValue: Long?`. Database v4 backfills existing currency cells and all new currency parsing uses exact BigDecimal -> minor-unit conversion.
 
-CSV import/export uses Android's Storage Access Framework. The app receives a user-selected document URI and reads/writes only that document; broad external-storage permission is not required.
+## Inventory transaction boundary
 
-CSV is staging/interchange, not a trusted database backup:
-- Khata imports become DRAFT rows.
-- Unknown Khata headers become TEXT columns.
-- Inventory imports create new SKUs only.
-- Opening/base stock is journaled through the normal inventory repository.
-- Tentative stock projections are never recreated from CSV.
+Committing a sale/purchase remains one Room transaction:
 
-## Analytics boundary
+1. validate document/products
+2. validate fixed-point quantity/money
+3. validate sale availability
+4. append stock movements
+5. ensure canonical ledger schema
+6. append locked FINAL Khata rows
+7. append payment row when applicable
+8. mark document COMMITTED
+9. append chained audit events
 
-Drafts are visible and editable in the grid, but pivot aggregation reads FINAL rows only so incomplete work cannot alter official analytical totals.
+A generic Khata edit cannot mutate a stock-owned row.
 
-## Feature isolation
+## CSV boundary
 
-Build/runtime flags currently include:
-- cleaning
-- pivot
-- inventory
-- tentative stock
-- negative committed stock policy
-- screenshot protection
-- import/export
-- cloud sync (reserved)
+Storage Access Framework provides scoped file access.
 
-Disabling a feature does not invalidate the canonical dataset or stock journal.
+Khata:
+- export includes display State and derived Balance
+- import ignores State/Balance
+- imported rows always become DRAFT
+- unknown headers become TEXT columns
+
+Inventory:
+- import creates new SKUs only
+- Base Stock is journaled through the inventory repository
+- tentative/reserved/projected quantities are export-only derived information

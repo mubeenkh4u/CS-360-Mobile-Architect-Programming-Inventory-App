@@ -26,7 +26,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         StockDocumentLineEntity::class,
         StockMovementEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class IamDatabase : RoomDatabase() {
@@ -164,13 +164,41 @@ abstract class IamDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Adds an exact integer minor-unit projection for CURRENCY cells.
+         *
+         * Existing currency values are backfilled from the previous numeric
+         * projection using SQLite ROUND. New writes are parsed exactly with
+         * BigDecimal before reaching the database.
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE cells ADD COLUMN moneyMinorValue INTEGER")
+                database.execSQL(
+                    """
+                    UPDATE cells
+                    SET moneyMinorValue = CAST(ROUND(numericValue * 100.0) AS INTEGER)
+                    WHERE numericValue IS NOT NULL
+                      AND columnId IN (
+                          SELECT id
+                          FROM dataset_columns
+                          WHERE type = 'CURRENCY'
+                      )
+                    """.trimIndent(),
+                )
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_cells_columnId_moneyMinorValue ON cells(columnId, moneyMinorValue)",
+                )
+            }
+        }
+
         fun create(context: Context): IamDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
                 IamDatabase::class.java,
                 "iam_khata.db",
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
                 .build()
     }

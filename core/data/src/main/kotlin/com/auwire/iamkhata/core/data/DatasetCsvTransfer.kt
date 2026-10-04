@@ -2,9 +2,11 @@ package com.auwire.iamkhata.core.data
 
 import com.auwire.iamkhata.core.model.ColumnRole
 import com.auwire.iamkhata.core.model.ColumnType
+import com.auwire.iamkhata.core.model.FixedPoint
 import com.auwire.iamkhata.core.model.RowOrigin
 import com.auwire.iamkhata.core.model.RowStatus
 import com.auwire.iamkhata.core.model.TransferSummary
+import com.auwire.iamkhata.core.model.displayState
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStream
@@ -15,13 +17,6 @@ import kotlinx.coroutines.withContext
 import org.apache.commons.csv.CSVFormat
 import org.apache.commons.csv.CSVPrinter
 
-/**
- * CSV interchange for one flexible dataset.
- *
- * Imports are intentionally staged as DRAFT rows. CSV is an interchange format,
- * not a trusted database backup, so imported data remains reviewable before it
- * becomes final business data.
- */
 class DatasetCsvTransfer(
     private val repository: DatasetRepository,
 ) {
@@ -37,8 +32,11 @@ class DatasetCsvTransfer(
             CSVPrinter(writer, CSVFormat.DEFAULT).use { printer ->
                 printer.printRecord(
                     buildList {
-                        add(STATUS_HEADER)
-                        addAll(columns.map { it.displayName })
+                        add(STATE_HEADER)
+                        columns.forEach { column ->
+                            add(column.displayName)
+                            if (column.role == ColumnRole.CREDIT) add(BALANCE_HEADER)
+                        }
                     },
                 )
 
@@ -51,9 +49,16 @@ class DatasetCsvTransfer(
                     page.rows.forEach { row ->
                         printer.printRecord(
                             buildList {
-                                add(row.status.name)
+                                add(row.displayState())
                                 columns.forEach { column ->
                                     add(row.values[column.id]?.rawValue.orEmpty())
+                                    if (column.role == ColumnRole.CREDIT) {
+                                        add(
+                                            row.balanceMinor
+                                                ?.let(FixedPoint::balanceDisplay)
+                                                .orEmpty(),
+                                        )
+                                    }
                                 }
                             },
                         )
@@ -77,16 +82,12 @@ class DatasetCsvTransfer(
             if (!iterator.hasNext()) return@withContext TransferSummary()
 
             val header = iterator.next().map { it.trim() }
-            val statusIndex = header.indexOfFirst {
-                it.equals(STATUS_HEADER, ignoreCase = true)
-            }
-
             var columns = repository.observeColumns(datasetId).first()
             var addedColumns = 0
             val indexToColumnId = mutableMapOf<Int, Long>()
 
             header.forEachIndexed { index, name ->
-                if (index == statusIndex || name.isBlank()) return@forEachIndexed
+                if (name.isBlank() || isSystemHeader(name)) return@forEachIndexed
 
                 val existing = columns.firstOrNull {
                     it.displayName.equals(name, ignoreCase = true)
@@ -139,8 +140,18 @@ class DatasetCsvTransfer(
         }
     }
 
+    private fun isSystemHeader(name: String): Boolean =
+        name.trim().lowercase() in SYSTEM_HEADERS
+
     companion object {
-        private const val STATUS_HEADER = "_Auwire Status"
+        private const val STATE_HEADER = "_AWi&k State"
+        private const val BALANCE_HEADER = "Balance"
         private const val EXPORT_PAGE_SIZE = 500
+        private val SYSTEM_HEADERS = setOf(
+            "_awi&k state",
+            "_auwire status",
+            "state",
+            "balance",
+        )
     }
 }

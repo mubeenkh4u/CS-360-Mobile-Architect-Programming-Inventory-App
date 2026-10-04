@@ -1,78 +1,91 @@
 # Data Model
 
-## Flexible data workbench
+## Dataset and columns
 
-### Dataset
+A dataset is a logical table. `LEDGER` is the canonical Khata dataset kind.
 
-A logical table. `LEDGER` is the canonical Khata dataset kind.
+Runtime columns store:
+- display name
+- logical type
+- semantic role
+- position
+- required/protected flags
 
-### Column
+The canonical ledger data columns are Date, Party, Particulars, Product, SKU, Quantity, Rate, Debit, Credit, Reference, and Stock Status.
 
-Runtime metadata defines name, type, semantic role, position, required state and protected state.
+**State and Balance are virtual/system fields, not editable dataset columns.**
 
-Supported types include TEXT, INTEGER, DECIMAL, CURRENCY, PERCENTAGE, DATE, DATETIME, BOOLEAN and CATEGORY.
+## Row lifecycle
 
-### Row
+`data_rows` stores stable identity, timestamps, revision, status, origin, originRef, and isLocked.
 
-`data_rows` stores:
+Statuses:
+- `DRAFT`
+- `FINAL`
+- `REVERSED`
+- `VOID`
 
-- stable ID
-- dataset ID
-- created/updated timestamps
-- monotonically increasing `revision`
-- `status`: DRAFT or FINAL
-- `origin`: MANUAL, IMPORT or STOCK_DOCUMENT
-- optional `originRef`
-- `isLocked`
+Origins:
+- `MANUAL`
+- `IMPORT`
+- `STOCK_DOCUMENT`
+- `REVERSAL`
 
-DRAFT rows may be incomplete. FINAL rows satisfy required/type validation. STOCK_DOCUMENT rows are locked because their source of truth is a committed inventory transaction.
+Inventory-generated rows are FINAL + STOCK_DOCUMENT + locked.
 
-### Cell
+A reversal row is FINAL + REVERSAL + locked and references its source row through `originRef`.
 
-Cells preserve raw source text plus normalized, numeric, date/time and boolean projections.
+## Cells
+
+Cells preserve:
+- rawValue
+- normalizedValue
+- numericValue
+- moneyMinorValue
+- instantValue
+- booleanValue
+
+`moneyMinorValue` is the exact integer projection used by financial running-balance calculations. `numericValue` remains useful for generic analysis.
+
+## Derived running Balance
+
+Balance is not stored in `cells`. A SQLite window query calculates it for displayed ledger rows from the full official history:
+
+```
+SUM(debitMinor - creditMinor)
+OVER (
+  PARTITION BY normalized Party
+  ORDER BY Date, createdAt, rowId
+)
+```
+
+Rows with no Party do not receive a derived balance. New finalized financial rows require Party.
+
+## Void vs reversal
+
+VOID changes the row status while preserving its cells and audit history. It is excluded from official balance/pivot calculations.
+
+REVERSE:
+1. marks the original FINAL row as REVERSED;
+2. creates an immutable FINAL counter-entry dated today;
+3. swaps Debit and Credit;
+4. links the reversal to the source row;
+5. leaves both rows in history.
+
+The original and counter-entry therefore net to zero from the reversal date forward.
 
 ## Inventory domain
 
-### Product
+Products, stock documents, lines, and stock movements remain strongly typed. Physical stock is derived from the immutable movement journal.
 
-`inventory_products` stores SKU, name, unit, reorder level, optional default sale/purchase rates, active state and timestamps.
+## CSV
 
-### Stock Document
+Khata export header uses `_AWi&k State`. `Balance` is exported after Credit. State and Balance are ignored on import; incoming rows are staged as DRAFT.
 
-`stock_documents` represents SALE or PURCHASE workflows with TENTATIVE, COMMITTED or CANCELLED status.
-
-### Stock Document Line
-
-`stock_document_lines` stores product, fixed-point quantity, fixed-point rate and line total. The data model supports multiple lines per document.
-
-### Stock Movement
-
-`stock_movements` is the committed physical stock journal. Base/on-hand stock is derived from movement deltas; there is no mutable `currentQuantity` source of truth.
-
-### Fixed point
-
-- `quantityMicros: Long` — six decimal places
-- monetary values — integer minor units
-
-## Ledger semantic integration
-
-The canonical ledger ensures semantic roles for Date, Party, Particulars, Product, SKU, Quantity, Rate, Debit, Credit, Reference and Stock Status.
-
-Inventory-generated ledger rows are FINAL, STOCK_DOCUMENT-origin and locked.
-
-## CSV interchange
-
-Khata export writes `_Auwire Status` plus runtime columns. Import matches display names case-insensitively, creates unknown fields as TEXT, and stages imported rows as DRAFT.
-
-Inventory export includes product master and stock snapshots. Import accepts product master plus Base Stock; reservation/projected fields are informational and are not imported.
-
-## Audit events
-
-Application mutations generate chained audit metadata. AuditWriter stores a SHA-256 hash of canonical event material rather than duplicating raw business rows. Manual row updates hash both before and after cell material.
+Inventory import accepts product master/opening stock only; derived stock states are not source-of-truth imports.
 
 ## Migrations
 
-- v1 → v2 adds inventory product, document, line and movement tables.
-- v2 → v3 adds row lifecycle/origin/lock metadata and indices.
-
-The v2 → v3 migration keeps existing rows FINAL. Existing rows with semantic `STOCK_STATUS=COMMITTED` are detected as STOCK_DOCUMENT-origin, locked, and associated with their Reference where present.
+- v1 -> v2: inventory tables
+- v2 -> v3: row lifecycle/origin/lock metadata
+- v3 -> v4: exact `moneyMinorValue` projection for currency cells + index/backfill

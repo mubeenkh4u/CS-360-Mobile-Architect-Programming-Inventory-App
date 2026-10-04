@@ -41,12 +41,6 @@ data class WorkspaceUiState(
     val pivot: PivotResult? = null,
 )
 
-/**
- * Coordinates UI intents with repositories/services.
- *
- * DAO and SQL details stay outside Compose. CSV transfer is routed through a
- * reusable service so the Storage Access Framework remains a UI concern only.
- */
 class WorkspaceViewModel(
     private val repository: DatasetRepository,
 ) : ViewModel() {
@@ -115,7 +109,7 @@ class WorkspaceViewModel(
         status: RowStatus,
     ) = launchTask(refreshAfter = true) {
         repository.appendRow(currentDataset(), values, status)
-        "Row saved as ${status.name.lowercase()}."
+        if (status == RowStatus.FINAL) "Row finalized." else "Draft saved."
     }
 
     fun updateRow(
@@ -131,7 +125,35 @@ class WorkspaceViewModel(
             status = status,
         )
         _state.update { it.copy(selectedRowId = row.id) }
-        "Row updated to revision ${row.revision + 1}."
+        if (row.status == RowStatus.FINAL) {
+            "Final row corrected; revision ${row.revision + 1}."
+        } else if (status == RowStatus.FINAL) {
+            "Draft finalized; revision ${row.revision + 1}."
+        } else {
+            "Draft updated; revision ${row.revision + 1}."
+        }
+    }
+
+    fun voidRow(row: DataRow, reason: String) = launchTask(refreshAfter = true) {
+        repository.voidRow(
+            datasetId = currentDataset(),
+            rowId = row.id,
+            expectedRevision = row.revision,
+            reason = reason,
+        )
+        _state.update { it.copy(selectedRowId = null) }
+        "Row voided. It remains in history but no longer affects official balances."
+    }
+
+    fun reverseRow(row: DataRow, reason: String) = launchTask(refreshAfter = true) {
+        val reversalId = repository.reverseRow(
+            datasetId = currentDataset(),
+            rowId = row.id,
+            expectedRevision = row.revision,
+            reason = reason,
+        )
+        _state.update { it.copy(selectedRowId = null) }
+        "Reversal row #$reversalId created; the original is marked REVERSED."
     }
 
     fun cleanColumn(columnId: Long, operation: CleaningOperation) =

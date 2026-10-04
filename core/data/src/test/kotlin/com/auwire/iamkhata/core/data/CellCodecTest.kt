@@ -7,11 +7,20 @@ import org.junit.Test
 
 class CellCodecTest {
     @Test
-    fun currencyParsingPreservesRawValueAndCreatesNumericProjection() {
-        val value = CellCodec.encode("Rs. 48,500/-", ColumnType.CURRENCY)
+    fun currencyParsingPreservesRawValueAndCreatesExactMinorUnits() {
+        val value = CellCodec.encode("Rs. 48,500.25/-", ColumnType.CURRENCY)
 
-        assertEquals("Rs. 48,500/-", value.rawValue)
-        assertEquals(48_500.0, value.numericValue!!, 0.001)
+        assertEquals("Rs. 48,500.25/-", value.rawValue)
+        assertEquals(48_500.25, value.numericValue!!, 0.001)
+        assertEquals(4_850_025L, value.moneyMinorValue)
+    }
+
+    @Test
+    fun currencyRejectsMoreThanTwoDecimalPlaces() {
+        val value = CellCodec.encode("10.001", ColumnType.CURRENCY)
+
+        assertNull(value.numericValue)
+        assertNull(value.moneyMinorValue)
     }
 
     @Test

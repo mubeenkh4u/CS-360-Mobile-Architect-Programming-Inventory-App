@@ -20,4 +20,7 @@ interface AnalyticsDao {
 
     @RawQuery(observedEntities = [RowEntity::class, CellEntity::class])
     suspend fun queryPivot(query: SupportSQLiteQuery): List<PivotProjection>
+
+    @RawQuery(observedEntities = [RowEntity::class, CellEntity::class])
+    suspend fun queryBalances(query: SupportSQLiteQuery): List<BalanceProjection>
 }

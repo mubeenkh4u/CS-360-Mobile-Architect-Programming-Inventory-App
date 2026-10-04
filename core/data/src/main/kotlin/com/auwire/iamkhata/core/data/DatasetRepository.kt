@@ -55,6 +55,20 @@ interface DatasetRepository {
         status: RowStatus,
     ): Long
 
+    suspend fun voidRow(
+        datasetId: Long,
+        rowId: Long,
+        expectedRevision: Long,
+        reason: String,
+    ): Long
+
+    suspend fun reverseRow(
+        datasetId: Long,
+        rowId: Long,
+        expectedRevision: Long,
+        reason: String,
+    ): Long
+
     suspend fun loadPage(
         datasetId: Long,
         limit: Int,

@@ -38,6 +38,7 @@ data class CellValue(
     val rawValue: String,
     val normalizedValue: String,
     val numericValue: Double? = null,
+    val moneyMinorValue: Long? = null,
     val instantValue: Long? = null,
     val booleanValue: Boolean? = null,
 )
@@ -57,7 +58,16 @@ data class DataRow(
     val originRef: String?,
     val isLocked: Boolean,
     val values: Map<Long, CellValue>,
+    /** Derived per-party running balance; never stored as an editable cell. */
+    val balanceMinor: Long? = null,
 )
+
+/** Human-facing State label used by the grid and CSV export. */
+fun DataRow.displayState(): String = when {
+    origin == RowOrigin.REVERSAL -> "REVERSAL"
+    isLocked -> "LOCKED"
+    else -> status.name
+}
 
 /** Paged table result suitable for large datasets. */
 data class TablePage(

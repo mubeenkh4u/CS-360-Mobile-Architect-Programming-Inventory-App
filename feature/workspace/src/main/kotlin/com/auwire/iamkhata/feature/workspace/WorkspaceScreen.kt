@@ -29,14 +29,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.auwire.iamkhata.core.model.DataRow
+import com.auwire.iamkhata.core.model.RowStatus
 import com.auwire.iamkhata.core.model.ThemeMode
 import com.auwire.iamkhata.core.model.WorkspaceFeatures
+import com.auwire.iamkhata.core.model.displayState
 import com.auwire.iamkhata.core.ui.AuwireTopBar
 import kotlinx.coroutines.launch
 
-/**
- * Khata workspace with a compact canvas and feature actions in a left drawer.
- */
 @Composable
 fun WorkspaceScreen(
     viewModel: WorkspaceViewModel,
@@ -54,6 +53,8 @@ fun WorkspaceScreen(
     var addColumnOpen by remember { mutableStateOf(false) }
     var editorOpen by remember { mutableStateOf(false) }
     var editorRow by remember { mutableStateOf<DataRow?>(null) }
+    var voidOpen by remember { mutableStateOf(false) }
+    var reverseOpen by remember { mutableStateOf(false) }
     var cleanOpen by remember { mutableStateOf(false) }
     var pivotOpen by remember { mutableStateOf(false) }
 
@@ -100,9 +101,14 @@ fun WorkspaceScreen(
                 onEditRow = {
                     closeDrawerThen {
                         editorRow = selectedRow
-                        editorOpen = selectedRow != null && !selectedRow.isLocked
+                        editorOpen = selectedRow != null &&
+                            !selectedRow.isLocked &&
+                            (selectedRow.status == RowStatus.DRAFT ||
+                                selectedRow.status == RowStatus.FINAL)
                     }
                 },
+                onVoidRow = { closeDrawerThen { voidOpen = true } },
+                onReverseRow = { closeDrawerThen { reverseOpen = true } },
                 onAddColumn = { closeDrawerThen { addColumnOpen = true } },
                 onClean = { closeDrawerThen { cleanOpen = true } },
                 onPivot = { closeDrawerThen { pivotOpen = true } },
@@ -113,7 +119,7 @@ fun WorkspaceScreen(
                 },
                 onExportCsv = {
                     closeDrawerThen {
-                        exportLauncher.launch("Auwire-Khata.csv")
+                        exportLauncher.launch("AWi-k-Khata.csv")
                     }
                 },
                 onThemeModeChange = {
@@ -159,9 +165,9 @@ fun WorkspaceScreen(
 
                 Text(
                     buildString {
-                        append("Rows: ${state.page.totalRows} • Columns: ${state.columns.size}")
+                        append("Rows: ${state.page.totalRows} • Data fields: ${state.columns.size} • Derived: State, Balance")
                         selectedRow?.let {
-                            append(" • Selected #${it.id} [${if (it.isLocked) "LOCKED" else it.status.name}]")
+                            append(" • Selected #${it.id} [${it.displayState()}]")
                         }
                     },
                     style = MaterialTheme.typography.bodySmall,
@@ -213,6 +219,7 @@ fun WorkspaceScreen(
             },
         )
     }
+
     if (editorOpen) {
         RowEditorDialog(
             columns = state.columns,
@@ -229,6 +236,33 @@ fun WorkspaceScreen(
             },
         )
     }
+
+    if (voidOpen && selectedRow != null) {
+        AccountingActionDialog(
+            title = "Void row #${selectedRow.id}",
+            explanation = "Voiding preserves the row and audit history but removes it from official balances and pivot totals. Use this only for an entry that should never have been posted.",
+            confirmLabel = "Void row",
+            onDismiss = { voidOpen = false },
+            onConfirm = { reason ->
+                viewModel.voidRow(selectedRow, reason)
+                voidOpen = false
+            },
+        )
+    }
+
+    if (reverseOpen && selectedRow != null) {
+        AccountingActionDialog(
+            title = "Reverse row #${selectedRow.id}",
+            explanation = "AWi&k will mark the source row REVERSED and create an immutable counter-entry dated today with Debit/Credit swapped. Both remain in history and net against each other.",
+            confirmLabel = "Create reversal",
+            onDismiss = { reverseOpen = false },
+            onConfirm = { reason ->
+                viewModel.reverseRow(selectedRow, reason)
+                reverseOpen = false
+            },
+        )
+    }
+
     if (cleanOpen) {
         CleanColumnDialog(
             columns = state.columns,
@@ -239,6 +273,7 @@ fun WorkspaceScreen(
             },
         )
     }
+
     if (pivotOpen) {
         PivotBuilderDialog(
             columns = state.columns,
@@ -249,6 +284,7 @@ fun WorkspaceScreen(
             },
         )
     }
+
     state.pivot?.let {
         PivotResultDialog(result = it, onDismiss = viewModel::dismissPivot)
     }

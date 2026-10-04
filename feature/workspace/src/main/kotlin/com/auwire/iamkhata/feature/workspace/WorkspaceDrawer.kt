@@ -11,12 +11,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.auwire.iamkhata.core.model.DataRow
+import com.auwire.iamkhata.core.model.RowStatus
 import com.auwire.iamkhata.core.model.ThemeMode
 import com.auwire.iamkhata.core.model.WorkspaceFeatures
+import com.auwire.iamkhata.core.model.displayState
 import com.auwire.iamkhata.core.ui.DrawerAction
 import com.auwire.iamkhata.core.ui.ThemeModeSection
 
-/** Khata-specific actions presented in the collapsible left drawer. */
 @Composable
 internal fun WorkspaceDrawer(
     selectedRow: DataRow?,
@@ -24,6 +25,8 @@ internal fun WorkspaceDrawer(
     themeMode: ThemeMode,
     onAddRow: () -> Unit,
     onEditRow: () -> Unit,
+    onVoidRow: () -> Unit,
+    onReverseRow: () -> Unit,
     onAddColumn: () -> Unit,
     onClean: () -> Unit,
     onPivot: () -> Unit,
@@ -31,6 +34,13 @@ internal fun WorkspaceDrawer(
     onExportCsv: () -> Unit,
     onThemeModeChange: (ThemeMode) -> Unit,
 ) {
+    val canEdit = selectedRow != null &&
+        !selectedRow.isLocked &&
+        (selectedRow.status == RowStatus.DRAFT || selectedRow.status == RowStatus.FINAL)
+    val canAccountingAction = selectedRow != null &&
+        !selectedRow.isLocked &&
+        selectedRow.status == RowStatus.FINAL
+
     ModalDrawerSheet {
         Column(
             modifier = Modifier
@@ -45,17 +55,26 @@ internal fun WorkspaceDrawer(
             DrawerAction("Add row", onClick = onAddRow)
             DrawerAction(
                 "Edit selected row",
-                enabled = selectedRow != null && !selectedRow.isLocked,
+                enabled = canEdit,
                 onClick = onEditRow,
+            )
+            DrawerAction(
+                "Void selected final row",
+                enabled = canAccountingAction,
+                onClick = onVoidRow,
+            )
+            DrawerAction(
+                "Reverse selected final row",
+                enabled = canAccountingAction,
+                onClick = onReverseRow,
             )
             DrawerAction("Add column", onClick = onAddColumn)
 
             if (selectedRow != null) {
                 Text(
-                    if (selectedRow.isLocked) {
-                        "Row #${selectedRow.id} is system-managed and locked."
-                    } else {
-                        "Selected #${selectedRow.id} • ${selectedRow.status.name} • r${selectedRow.revision}"
+                    buildString {
+                        append("Selected #${selectedRow.id} • ${selectedRow.displayState()} • r${selectedRow.revision}")
+                        if (selectedRow.isLocked) append(" • immutable")
                     },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                 )
@@ -68,7 +87,7 @@ internal fun WorkspaceDrawer(
                 fontWeight = FontWeight.Bold,
             )
             if (features.cleaning) {
-                DrawerAction("Clean column", onClick = onClean)
+                DrawerAction("Clean draft column", onClick = onClean)
             }
             if (features.pivot) {
                 DrawerAction("Pivot", onClick = onPivot)

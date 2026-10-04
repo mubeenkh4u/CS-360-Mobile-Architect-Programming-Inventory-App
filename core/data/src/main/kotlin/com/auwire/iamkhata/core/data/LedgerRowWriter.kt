@@ -135,6 +135,7 @@ internal class LedgerRowWriter(
         rawValue = rawValue,
         normalizedValue = normalizedValue,
         numericValue = numericValue,
+        moneyMinorValue = moneyMinorValue,
         instantValue = instantValue,
         booleanValue = booleanValue,
     )

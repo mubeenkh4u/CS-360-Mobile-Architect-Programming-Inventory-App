@@ -15,23 +15,24 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.auwire.iamkhata.core.model.ColumnRole
 import com.auwire.iamkhata.core.model.ColumnType
 import com.auwire.iamkhata.core.model.DataRow
 import com.auwire.iamkhata.core.model.DatasetColumn
 import com.auwire.iamkhata.core.model.RowStatus
 
-/** Adds a runtime column without requiring an app/database schema migration. */
 @Composable
 internal fun AddColumnDialog(
     onDismiss: () -> Unit,
     onAdd: (String, ColumnType) -> Unit,
 ) {
-    var name by remember { androidx.compose.runtime.mutableStateOf("") }
-    var type by remember { androidx.compose.runtime.mutableStateOf(ColumnType.TEXT) }
+    var name by remember { mutableStateOf("") }
+    var type by remember { mutableStateOf(ColumnType.TEXT) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -51,6 +52,7 @@ internal fun AddColumnDialog(
                     display = ColumnType::name,
                     onSelect = { type = it },
                 )
+                Text("State and Balance are system-managed and cannot be added as custom columns.")
             }
         },
         confirmButton = {
@@ -62,13 +64,6 @@ internal fun AddColumnDialog(
     )
 }
 
-/**
- * Dynamic add/edit form.
- *
- * Drafts deliberately allow missing or temporarily invalid values. Finalization
- * requires every required field; repository validation also verifies typed
- * values before the row can become FINAL.
- */
 @Composable
 internal fun RowEditorDialog(
     columns: List<DatasetColumn>,
@@ -106,33 +101,91 @@ internal fun RowEditorDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 row?.let {
-                    Text("Current status: ${it.status.name}")
+                    Text("Current state: ${it.status.name}")
+                    if (it.status == RowStatus.FINAL) {
+                        Text("Final rows stay final after correction. Use Void or Reverse for accounting corrections that should preserve history.")
+                    }
                 }
-                columns.filter { it.type != ColumnType.FORMULA }.forEach { column ->
-                    OutlinedTextField(
-                        value = values[column.id].orEmpty(),
-                        onValueChange = { values[column.id] = it },
-                        label = {
-                            Text(column.displayName + if (column.required) " *" else "")
-                        },
-                        singleLine = true,
-                    )
-                }
+                columns
+                    .filter { it.type != ColumnType.FORMULA && it.role != ColumnRole.STOCK_STATUS }
+                    .forEach { column ->
+                        OutlinedTextField(
+                            value = values[column.id].orEmpty(),
+                            onValueChange = { values[column.id] = it },
+                            label = {
+                                Text(column.displayName + if (column.required) " *" else "")
+                            },
+                            singleLine = true,
+                        )
+                    }
             }
         },
         confirmButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = { onSave(values.toMap(), RowStatus.DRAFT) },
-                ) {
-                    Text("Save draft")
+            when (row?.status) {
+                RowStatus.FINAL -> {
+                    Button(
+                        enabled = canFinalize,
+                        onClick = { onSave(values.toMap(), RowStatus.FINAL) },
+                    ) {
+                        Text("Save correction")
+                    }
                 }
-                Button(
-                    enabled = canFinalize,
-                    onClick = { onSave(values.toMap(), RowStatus.FINAL) },
-                ) {
-                    Text("Save final")
+
+                RowStatus.REVERSED,
+                RowStatus.VOID -> Unit
+
+                else -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { onSave(values.toMap(), RowStatus.DRAFT) },
+                        ) {
+                            Text("Save draft")
+                        }
+                        Button(
+                            enabled = canFinalize,
+                            onClick = { onSave(values.toMap(), RowStatus.FINAL) },
+                        ) {
+                            Text("Finalize")
+                        }
+                    }
                 }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+internal fun AccountingActionDialog(
+    title: String,
+    explanation: String,
+    confirmLabel: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var reason by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(explanation)
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = { reason = it },
+                    label = { Text("Reason *") },
+                    minLines = 2,
+                    maxLines = 4,
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = reason.isNotBlank(),
+                onClick = { onConfirm(reason) },
+            ) {
+                Text(confirmLabel)
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },

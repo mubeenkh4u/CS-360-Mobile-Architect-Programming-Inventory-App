@@ -23,14 +23,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.auwire.iamkhata.core.model.ColumnRole
 import com.auwire.iamkhata.core.model.DataRow
 import com.auwire.iamkhata.core.model.DatasetColumn
+import com.auwire.iamkhata.core.model.FixedPoint
 import com.auwire.iamkhata.core.model.SortDirection
+import com.auwire.iamkhata.core.model.displayState
 
 internal val TableCellWidth = 150.dp
-private val RowStateWidth = 105.dp
+private val RowStateWidth = 112.dp
+private val BalanceCellWidth = 170.dp
 
-/** Horizontally scrollable grid with selectable, revision-aware rows. */
 @Composable
 internal fun DataGrid(
     columns: List<DatasetColumn>,
@@ -42,7 +45,12 @@ internal fun DataGrid(
     onSort: (DatasetColumn) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val tableWidth = RowStateWidth + (TableCellWidth * columns.size.coerceAtLeast(1))
+    val showBalance = columns.any { it.role == ColumnRole.DEBIT } &&
+        columns.any { it.role == ColumnRole.CREDIT }
+    val derivedWidth = if (showBalance) BalanceCellWidth else 0.dp
+    val tableWidth = RowStateWidth +
+        (TableCellWidth * columns.size.coerceAtLeast(1)) +
+        derivedWidth
 
     Box(
         modifier = modifier
@@ -76,6 +84,15 @@ internal fun DataGrid(
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
+                        if (showBalance && column.role == ColumnRole.CREDIT) {
+                            Text(
+                                "Balance",
+                                modifier = Modifier
+                                    .width(BalanceCellWidth)
+                                    .padding(horizontal = 8.dp, vertical = 12.dp),
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
                     }
                 }
                 HorizontalDivider()
@@ -98,7 +115,7 @@ internal fun DataGrid(
                         },
                 ) {
                     Text(
-                        text = if (row.isLocked) "LOCKED" else row.status.name,
+                        text = row.displayState(),
                         modifier = Modifier
                             .width(RowStateWidth)
                             .padding(horizontal = 8.dp, vertical = 10.dp),
@@ -113,6 +130,17 @@ internal fun DataGrid(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        if (showBalance && column.role == ColumnRole.CREDIT) {
+                            Text(
+                                row.balanceMinor?.let(FixedPoint::balanceDisplay) ?: "-",
+                                modifier = Modifier
+                                    .width(BalanceCellWidth)
+                                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
                     }
                 }
                 HorizontalDivider()
@@ -121,7 +149,6 @@ internal fun DataGrid(
     }
 }
 
-/** Paging controls keep the UI bounded even when a dataset has many rows. */
 @Composable
 internal fun PaginationBar(
     offset: Int,
@@ -144,7 +171,7 @@ internal fun PaginationBar(
         } else {
             val start = offset + 1
             val end = (offset + loadedRows).toLong().coerceAtMost(totalRows)
-            "$start–$end"
+            "$start-$end"
         }
         Text(label, Modifier.padding(top = 10.dp))
 

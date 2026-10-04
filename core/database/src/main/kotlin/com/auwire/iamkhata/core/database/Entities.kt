@@ -111,6 +111,7 @@ data class RowEntity(
         Index("columnId"),
         Index(value = ["columnId", "normalizedValue"]),
         Index(value = ["columnId", "numericValue"]),
+        Index(value = ["columnId", "moneyMinorValue"]),
         Index(value = ["columnId", "instantValue"]),
     ],
 )
@@ -120,6 +121,7 @@ data class CellEntity(
     val rawValue: String,
     val normalizedValue: String,
     val numericValue: Double?,
+    val moneyMinorValue: Long?,
     val instantValue: Long?,
     val booleanValue: Boolean?,
 )

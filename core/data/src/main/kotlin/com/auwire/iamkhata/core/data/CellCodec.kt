@@ -2,6 +2,7 @@ package com.auwire.iamkhata.core.data
 
 import com.auwire.iamkhata.core.model.CellValue
 import com.auwire.iamkhata.core.model.ColumnType
+import com.auwire.iamkhata.core.model.FixedPoint
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -20,6 +21,7 @@ object CellCodec {
         DateTimeFormatter.ISO_LOCAL_DATE,
         DateTimeFormatter.ofPattern("d/M/uuuu"),
         DateTimeFormatter.ofPattern("M/d/uuuu"),
+        DateTimeFormatter.ofPattern("d-M/uuuu"),
         DateTimeFormatter.ofPattern("d-M-uuuu"),
     )
 
@@ -30,12 +32,21 @@ object CellCodec {
         return when (type) {
             ColumnType.INTEGER,
             ColumnType.DECIMAL,
-            ColumnType.CURRENCY,
             ColumnType.PERCENTAGE -> CellValue(
                 rawValue = raw,
                 normalizedValue = normalized,
                 numericValue = parseNumber(trimmed),
             )
+
+            ColumnType.CURRENCY -> {
+                val minor = runCatching { FixedPoint.parseMoney(trimmed) }.getOrNull()
+                CellValue(
+                    rawValue = raw,
+                    normalizedValue = normalized,
+                    numericValue = minor?.toDouble()?.div(100.0),
+                    moneyMinorValue = minor,
+                )
+            }
 
             ColumnType.DATE -> CellValue(
                 rawValue = raw,
@@ -63,11 +74,11 @@ object CellCodec {
         if (value.isBlank()) return null
 
         val sanitized = value
-            .replace(Regex("(?i)rs\\.?"), "")
+            .replace(Regex("(?i)rs\.?"), "")
             .replace(",", "")
             .replace("/-", "")
             .replace("%", "")
-            .replace(Regex("\\s+"), "")
+            .replace(Regex("\s+"), "")
 
         return sanitized.toDoubleOrNull()
     }
