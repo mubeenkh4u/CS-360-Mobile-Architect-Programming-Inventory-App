@@ -5,11 +5,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -57,48 +59,58 @@ internal fun DataGrid(
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
     ) {
-        LazyColumn(Modifier.width(tableWidth).fillMaxHeight()) {
-            item(key = "header") {
-                Row {
-                    Text(
-                        "State",
-                        modifier = Modifier
-                            .width(RowStateWidth)
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
-                        fontWeight = FontWeight.Bold,
-                    )
-                    columns.forEach { column ->
-                        val suffix = when {
-                            sortColumnId != column.id -> ""
-                            sortDirection == SortDirection.ASC -> " ↑"
-                            else -> " ↓"
-                        }
-                        TextButton(
-                            onClick = { onSort(column) },
-                            modifier = Modifier.width(TableCellWidth),
-                        ) {
-                            Text(
-                                column.displayName + suffix,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        if (showBalance && column.role == ColumnRole.CREDIT) {
-                            Text(
-                                "Balance",
-                                modifier = Modifier
-                                    .width(BalanceCellWidth)
-                                    .padding(horizontal = 8.dp, vertical = 12.dp),
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
+        // Keep the header outside the vertically scrolling list. The entire
+        // table remains inside one horizontal scroll container so header cells
+        // and row cells always move together left/right.
+        Column(
+            modifier = Modifier
+                .width(tableWidth)
+                .fillMaxHeight(),
+        ) {
+            Row(Modifier.fillMaxWidth()) {
+                Text(
+                    "State",
+                    modifier = Modifier
+                        .width(RowStateWidth)
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    fontWeight = FontWeight.Bold,
+                )
+                columns.forEach { column ->
+                    val suffix = when {
+                        sortColumnId != column.id -> ""
+                        sortDirection == SortDirection.ASC -> " ↑"
+                        else -> " ↓"
+                    }
+                    TextButton(
+                        onClick = { onSort(column) },
+                        modifier = Modifier.width(TableCellWidth),
+                    ) {
+                        Text(
+                            column.displayName + suffix,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (showBalance && column.role == ColumnRole.CREDIT) {
+                        Text(
+                            "Balance",
+                            modifier = Modifier
+                                .width(BalanceCellWidth)
+                                .padding(horizontal = 8.dp, vertical = 12.dp),
+                            fontWeight = FontWeight.Bold,
+                        )
                     }
                 }
-                HorizontalDivider()
             }
+            HorizontalDivider()
 
-            items(rows, key = DataRow::id) { row ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
+                items(rows, key = DataRow::id) { row ->
                 val selected = row.id == selectedRowId
                 Row(
                     modifier = Modifier
@@ -144,6 +156,7 @@ internal fun DataGrid(
                     }
                 }
                 HorizontalDivider()
+                }
             }
         }
     }
