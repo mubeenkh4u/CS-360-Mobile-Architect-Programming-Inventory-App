@@ -72,9 +72,15 @@ internal fun RowEditorDialog(
     onSave: (Map<Long, String>, RowStatus) -> Unit,
 ) {
     val values = remember(columns, row?.id, row?.revision) {
+        val editableColumnIds = columns
+            .filter { it.type != ColumnType.FORMULA && it.role != ColumnRole.STOCK_STATUS }
+            .mapTo(mutableSetOf()) { it.id }
+
         mutableStateMapOf<Long, String>().apply {
             row?.values?.forEach { (columnId, cell) ->
-                this[columnId] = cell.rawValue
+                if (columnId in editableColumnIds) {
+                    this[columnId] = cell.rawValue
+                }
             }
         }
     }

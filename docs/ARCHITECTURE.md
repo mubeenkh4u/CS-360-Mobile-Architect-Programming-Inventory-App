@@ -65,7 +65,7 @@ Accounting order is:
 2. createdAt
 3. row ID
 
-The running window is calculated across the complete official ledger before UI paging/filtering. Therefore search, sorting, and moving between pages never alter historical balances.
+For each displayed row, the repository performs an exact correlated minor-unit sum over the complete earlier official history for that Party before UI paging/filtering. This avoids requiring newer SQLite window-function support and preserves the app's API 26 compatibility. Search, sorting, and moving between pages never alter historical balances.
 
 Official balance membership:
 - FINAL: included

@@ -152,6 +152,7 @@ class DatasetCsvTransfer(
             "_auwire status",
             "state",
             "balance",
+            "stock status",
         )
     }
 }

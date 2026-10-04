@@ -49,15 +49,7 @@ Cells preserve:
 
 ## Derived running Balance
 
-Balance is not stored in `cells`. A SQLite window query calculates it for displayed ledger rows from the full official history:
-
-```
-SUM(debitMinor - creditMinor)
-OVER (
-  PARTITION BY normalized Party
-  ORDER BY Date, createdAt, rowId
-)
-```
+Balance is not stored in `cells`. For each displayed row, a correlated SQLite query sums `debitMinor - creditMinor` over all earlier official rows for the same normalized Party, ordered by Date, createdAt, then rowId. This is compatible with the app's API 26 SQLite floor and avoids loading the full ledger into application memory.
 
 Rows with no Party do not receive a derived balance. New finalized financial rows require Party.
 
