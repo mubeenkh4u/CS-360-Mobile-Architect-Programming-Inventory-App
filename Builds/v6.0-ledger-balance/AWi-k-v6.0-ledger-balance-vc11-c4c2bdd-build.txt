@@ -1,0 +1,7 @@
+App: AWi&k
+Package: com.auwire.iamkhata
+Version name: 6.0-ledger-balance
+Version code: 11
+Source commit: c4c2bddb8c66c3acca3b0d083cde2bbc43b429dd
+Workflow run: https://github.com/mubeenkh4u/CS-360-Mobile-Architect-Programming-Inventory-App/actions/runs/37174649154
+APK: AWi-k-v6.0-ledger-balance-vc11-c4c2bdd-release.apk
