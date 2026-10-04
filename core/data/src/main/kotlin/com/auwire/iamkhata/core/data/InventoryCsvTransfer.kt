@@ -61,7 +61,7 @@ class InventoryCsvTransfer(
 
                 val header = iterator.next()
                     .mapIndexed { index, value ->
-                        value.trim().lowercase(Locale.ROOT) to index
+                        normalizeHeader(value) to index
                     }
                     .toMap()
 
@@ -143,6 +143,12 @@ class InventoryCsvTransfer(
                 )
             }
         }
+
+    private fun normalizeHeader(value: String): String =
+        value
+            .removePrefix("\uFEFF")
+            .trim()
+            .lowercase(Locale.ROOT)
 
     private fun requireRequiredHeaders(header: Map<String, Int>) {
         REQUIRED_HEADERS.forEach { name ->
