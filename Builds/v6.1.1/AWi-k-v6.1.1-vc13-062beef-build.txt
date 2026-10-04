@@ -1,0 +1,7 @@
+App: AWi&k
+Package: com.auwire.iamkhata
+Version name: 6.1.1
+Version code: 13
+Source commit: 062beef682935e441caa0c094b73d56a43eb7f89
+Workflow run: https://github.com/mubeenkh4u/CS-360-Mobile-Architect-Programming-Inventory-App/actions/runs/37180755941
+APK: AWi-k-v6.1.1-vc13-062beef-release.apk
