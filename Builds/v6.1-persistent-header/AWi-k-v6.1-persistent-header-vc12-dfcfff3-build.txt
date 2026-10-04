@@ -1,0 +1,7 @@
+App: AWi&k
+Package: com.auwire.iamkhata
+Version name: 6.1-persistent-header
+Version code: 12
+Source commit: dfcfff3bb751b434b62ed83245bd7a14a554182c
+Workflow run: https://github.com/mubeenkh4u/CS-360-Mobile-Architect-Programming-Inventory-App/actions/runs/37180039116
+APK: AWi-k-v6.1-persistent-header-vc12-dfcfff3-release.apk
