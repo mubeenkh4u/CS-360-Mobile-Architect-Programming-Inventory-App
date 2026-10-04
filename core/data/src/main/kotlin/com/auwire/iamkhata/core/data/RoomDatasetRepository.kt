@@ -535,6 +535,12 @@ class RoomDatasetRepository(
     /**
      * Computes official running balances before display filtering/paging.
      *
+     * A correlated exact-minor-unit sum is used instead of SQLite window
+     * functions so the calculation remains compatible with the app's API 26
+     * floor. The composite cell indexes keep Party/date/money lookups bounded to
+     * the requested page rather than loading the full ledger into application
+     * memory.
+     *
      * Balance is partitioned by normalized Party and ordered by accounting date,
      * creation time, then row id. UI sorting/search never changes the balance.
      * DRAFT and VOID rows are excluded; REVERSED source rows remain official so
@@ -554,54 +560,78 @@ class RoomDatasetRepository(
         val credit = byRole[ColumnRole.CREDIT] ?: return emptyMap()
 
         val placeholders = requestedRowIds.joinToString(",") { "?" }
-        val args = mutableListOf<Any>(
-            party.id,
-            date.id,
-            debit.id,
-            credit.id,
-            datasetId,
-        )
-        args.addAll(requestedRowIds)
-
         val query = SimpleSQLiteQuery(
             """
-                WITH ledger AS (
-                    SELECT
-                        r.id AS rowId,
-                        NULLIF(TRIM(p.normalizedValue), '') AS partyKey,
-                        d.instantValue AS dateValue,
-                        r.createdAt AS createdAt,
-                        COALESCE(db.moneyMinorValue, 0) - COALESCE(cr.moneyMinorValue, 0) AS deltaMinor
-                    FROM data_rows r
-                    LEFT JOIN cells p
-                      ON p.rowId = r.id AND p.columnId = ?
-                    LEFT JOIN cells d
-                      ON d.rowId = r.id AND d.columnId = ?
-                    LEFT JOIN cells db
-                      ON db.rowId = r.id AND db.columnId = ?
-                    LEFT JOIN cells cr
-                      ON cr.rowId = r.id AND cr.columnId = ?
-                    WHERE r.datasetId = ?
-                      AND r.status IN ('FINAL', 'REVERSED')
-                ),
-                running AS (
-                    SELECT
-                        rowId,
-                        partyKey,
-                        SUM(deltaMinor) OVER (
-                            PARTITION BY partyKey
-                            ORDER BY dateValue ASC, createdAt ASC, rowId ASC
-                            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                        ) AS balanceMinor
-                    FROM ledger
-                )
                 SELECT
-                    rowId,
-                    CASE WHEN partyKey IS NULL THEN NULL ELSE balanceMinor END AS balanceMinor
-                FROM running
-                WHERE rowId IN ($placeholders)
+                    r.id AS rowId,
+                    CASE
+                        WHEN r.status NOT IN ('FINAL', 'REVERSED')
+                          OR NULLIF(TRIM(p.normalizedValue), '') IS NULL
+                        THEN NULL
+                        ELSE COALESCE(
+                            (
+                                SELECT SUM(
+                                    COALESCE(db2.moneyMinorValue, 0)
+                                    - COALESCE(cr2.moneyMinorValue, 0)
+                                )
+                                FROM data_rows r2
+                                JOIN cells p2
+                                  ON p2.rowId = r2.id
+                                 AND p2.columnId = ?
+                                LEFT JOIN cells d2
+                                  ON d2.rowId = r2.id
+                                 AND d2.columnId = ?
+                                LEFT JOIN cells db2
+                                  ON db2.rowId = r2.id
+                                 AND db2.columnId = ?
+                                LEFT JOIN cells cr2
+                                  ON cr2.rowId = r2.id
+                                 AND cr2.columnId = ?
+                                WHERE r2.datasetId = ?
+                                  AND r2.status IN ('FINAL', 'REVERSED')
+                                  AND p2.normalizedValue = p.normalizedValue
+                                  AND (
+                                      COALESCE(d2.instantValue, 9223372036854775807)
+                                          < COALESCE(d.instantValue, 9223372036854775807)
+                                      OR (
+                                          COALESCE(d2.instantValue, 9223372036854775807)
+                                              = COALESCE(d.instantValue, 9223372036854775807)
+                                          AND (
+                                              r2.createdAt < r.createdAt
+                                              OR (
+                                                  r2.createdAt = r.createdAt
+                                                  AND r2.id <= r.id
+                                              )
+                                          )
+                                      )
+                                  )
+                            ),
+                            0
+                        )
+                    END AS balanceMinor
+                FROM data_rows r
+                LEFT JOIN cells p
+                  ON p.rowId = r.id
+                 AND p.columnId = ?
+                LEFT JOIN cells d
+                  ON d.rowId = r.id
+                 AND d.columnId = ?
+                WHERE r.datasetId = ?
+                  AND r.id IN ($placeholders)
             """.trimIndent(),
-            args.toTypedArray(),
+            // SQL placeholder order is outer Party/Date after the correlated
+            // subquery placeholders, so reorder bound args to match the text.
+            arrayOf(
+                party.id,
+                date.id,
+                debit.id,
+                credit.id,
+                datasetId,
+                party.id,
+                date.id,
+                datasetId,
+                *requestedRowIds.toTypedArray(),
+            ),
         )
 
         return analyticsDao.queryBalances(query).associate { it.rowId to it.balanceMinor }
