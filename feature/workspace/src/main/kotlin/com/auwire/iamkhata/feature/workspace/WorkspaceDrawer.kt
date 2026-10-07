@@ -1,6 +1,8 @@
 package com.auwire.iamkhata.feature.workspace
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
@@ -47,6 +49,7 @@ internal fun WorkspaceDrawer(
         Column(
             modifier = Modifier
                 .fillMaxHeight()
+                .verticalScroll(rememberScrollState())
                 .padding(vertical = 12.dp),
         ) {
             Text(

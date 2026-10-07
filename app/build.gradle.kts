@@ -40,8 +40,8 @@ android {
         applicationId = "com.auwire.iamkhata"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
-        versionName = "6.2.1"
+        versionCode = 16
+        versionName = "6.2.2"
 
         buildConfigField("boolean", "FEATURE_CLEANING", "true")
         buildConfigField("boolean", "FEATURE_PIVOT", "true")
