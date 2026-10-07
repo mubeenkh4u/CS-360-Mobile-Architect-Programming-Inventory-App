@@ -2,9 +2,11 @@ package com.auwire.iamkhata.core.data
 
 import com.auwire.iamkhata.core.model.ColumnRole
 import com.auwire.iamkhata.core.model.ColumnType
+import com.auwire.iamkhata.core.model.FilterSpec
 import com.auwire.iamkhata.core.model.FixedPoint
 import com.auwire.iamkhata.core.model.RowOrigin
 import com.auwire.iamkhata.core.model.RowStatus
+import com.auwire.iamkhata.core.model.SortSpec
 import com.auwire.iamkhata.core.model.TransferSummary
 import com.auwire.iamkhata.core.model.displayState
 import java.io.InputStream
@@ -23,6 +25,8 @@ class DatasetCsvTransfer(
     suspend fun exportDataset(
         datasetId: Long,
         output: OutputStream,
+        sort: SortSpec? = null,
+        filter: FilterSpec? = null,
     ): TransferSummary = withContext(Dispatchers.IO) {
         val columns = repository.observeColumns(datasetId).first()
         var exported = 0
@@ -45,6 +49,8 @@ class DatasetCsvTransfer(
                         datasetId = datasetId,
                         limit = EXPORT_PAGE_SIZE,
                         offset = offset,
+                        sort = sort,
+                        filter = filter,
                     )
                     page.rows.forEach { row ->
                         printer.printRecord(
