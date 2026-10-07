@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -57,15 +59,24 @@ fun WorkspaceScreen(
     var reverseOpen by remember { mutableStateOf(false) }
     var cleanOpen by remember { mutableStateOf(false) }
     var pivotOpen by remember { mutableStateOf(false) }
+    var cardView by remember { mutableStateOf(false) }
+    var exportFiltered by remember { mutableStateOf(false) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/csv"),
     ) { uri ->
         if (uri != null) {
-            viewModel.exportCsv {
-                context.contentResolver.openOutputStream(uri, "wt")
+            if (exportFiltered) {
+                viewModel.exportFilteredCsv {
+                    context.contentResolver.openOutputStream(uri, "wt")
+                }
+            } else {
+                viewModel.exportCsv {
+                    context.contentResolver.openOutputStream(uri, "wt")
+                }
             }
         }
+        exportFiltered = false
     }
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -119,9 +130,17 @@ fun WorkspaceScreen(
                 },
                 onExportCsv = {
                     closeDrawerThen {
+                        exportFiltered = false
                         exportLauncher.launch("AWi-k-Khata.csv")
                     }
                 },
+                onExportFilteredCsv = {
+                    closeDrawerThen {
+                        exportFiltered = true
+                        exportLauncher.launch("AWi-k-Khata-filtered.csv")
+                    }
+                },
+                hasAppliedFilter = state.appliedSearchText.isNotBlank(),
                 onThemeModeChange = {
                     onThemeModeChange(it)
                     scope.launch { drawerState.close() }
@@ -163,6 +182,22 @@ fun WorkspaceScreen(
                     }
                 }
 
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(
+                        selected = !cardView,
+                        onClick = { cardView = false },
+                        label = { Text("Table") },
+                    )
+                    FilterChip(
+                        selected = cardView,
+                        onClick = { cardView = true },
+                        label = { Text("Cards") },
+                    )
+                }
+
                 Text(
                     buildString {
                         append("Rows: ${state.page.totalRows} • Data fields: ${state.columns.size} • Derived: State, Balance")
@@ -187,16 +222,56 @@ fun WorkspaceScreen(
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
 
-                DataGrid(
-                    columns = state.columns,
-                    rows = state.page.rows,
-                    selectedRowId = state.selectedRowId,
-                    sortColumnId = state.sort?.columnId,
-                    sortDirection = state.sort?.direction,
-                    onSelectRow = viewModel::selectRow,
-                    onSort = viewModel::toggleSort,
-                    modifier = Modifier.weight(1f),
-                )
+                if (cardView) {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(state.page.rows, key = DataRow::id) { row ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        viewModel.selectRow(
+                                            if (row.id == state.selectedRowId) null else row.id,
+                                        )
+                                    },
+                            ) {
+                                Column(
+                                    Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text(
+                                        "Row #${row.id} • ${row.displayState()}",
+                                        style = MaterialTheme.typography.titleSmall,
+                                    )
+                                    state.columns.forEach { column ->
+                                        val raw = row.values[column.id]?.rawValue.orEmpty()
+                                        if (raw.isNotBlank()) {
+                                            Text("${column.displayName}: $raw")
+                                        }
+                                        if (column.role == com.auwire.iamkhata.core.model.ColumnRole.CREDIT) {
+                                            row.balanceMinor?.let {
+                                                Text("Balance: ${com.auwire.iamkhata.core.model.FixedPoint.balanceDisplay(it)}")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    DataGrid(
+                        columns = state.columns,
+                        rows = state.page.rows,
+                        selectedRowId = state.selectedRowId,
+                        sortColumnId = state.sort?.columnId,
+                        sortDirection = state.sort?.direction,
+                        onSelectRow = viewModel::selectRow,
+                        onSort = viewModel::toggleSort,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
 
                 PaginationBar(
                     offset = state.page.offset,
