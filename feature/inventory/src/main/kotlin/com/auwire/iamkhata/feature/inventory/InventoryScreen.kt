@@ -16,6 +16,7 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalNavigationDrawer
@@ -60,6 +61,7 @@ fun InventoryScreen(
     var adjustOpen by remember { mutableStateOf(false) }
     var saleOpen by remember { mutableStateOf(false) }
     var purchaseOpen by remember { mutableStateOf(false) }
+    var cardView by remember { mutableStateOf(true) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/csv"),
@@ -136,6 +138,22 @@ fun InventoryScreen(
                     style = MaterialTheme.typography.bodySmall,
                 )
 
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(
+                        selected = cardView,
+                        onClick = { cardView = true },
+                        label = { Text("Cards") },
+                    )
+                    FilterChip(
+                        selected = !cardView,
+                        onClick = { cardView = false },
+                        label = { Text("Table") },
+                    )
+                }
+
                 state.message?.let { message ->
                     AssistChip(
                         onClick = viewModel::clearMessage,
@@ -146,44 +164,87 @@ fun InventoryScreen(
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
 
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    item {
+                if (cardView) {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        item {
+                            Text(
+                                "Live stock",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        if (state.stock.isEmpty()) {
+                            item {
+                                Text("No products yet. Use ☰ → Add product or import inventory CSV.")
+                            }
+                        } else {
+                            items(state.stock, key = { it.product.id }) { snapshot ->
+                                StockSnapshotCard(snapshot)
+                            }
+                        }
+
+                        item {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Tentative workflow",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        if (state.tentativeDocuments.isEmpty()) {
+                            item { Text("No tentative sales or purchases.") }
+                        } else {
+                            items(state.tentativeDocuments, key = StockDocument::id) { document ->
+                                TentativeDocumentCard(
+                                    document = document,
+                                    onCommit = { viewModel.commitDocument(document.id) },
+                                    onCancel = { viewModel.cancelDocument(document.id) },
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         Text(
                             "Live stock",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                         )
-                    }
-                    if (state.stock.isEmpty()) {
-                        item {
+                        if (state.stock.isEmpty()) {
                             Text("No products yet. Use ☰ → Add product or import inventory CSV.")
+                        } else {
+                            InventoryStockTable(
+                                stock = state.stock,
+                                modifier = Modifier.weight(1f),
+                            )
                         }
-                    } else {
-                        items(state.stock, key = { it.product.id }) { snapshot ->
-                            StockSnapshotCard(snapshot)
-                        }
-                    }
 
-                    item {
-                        Spacer(Modifier.height(8.dp))
                         Text(
                             "Tentative workflow",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                         )
-                    }
-                    if (state.tentativeDocuments.isEmpty()) {
-                        item { Text("No tentative sales or purchases.") }
-                    } else {
-                        items(state.tentativeDocuments, key = StockDocument::id) { document ->
-                            TentativeDocumentCard(
-                                document = document,
-                                onCommit = { viewModel.commitDocument(document.id) },
-                                onCancel = { viewModel.cancelDocument(document.id) },
-                            )
+                        if (state.tentativeDocuments.isEmpty()) {
+                            Text("No tentative sales or purchases.")
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.weight(0.45f),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                items(state.tentativeDocuments, key = StockDocument::id) { document ->
+                                    TentativeDocumentCard(
+                                        document = document,
+                                        onCommit = { viewModel.commitDocument(document.id) },
+                                        onCancel = { viewModel.cancelDocument(document.id) },
+                                    )
+                                }
+                            }
                         }
                     }
                 }
