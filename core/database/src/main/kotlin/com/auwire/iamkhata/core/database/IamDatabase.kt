@@ -25,8 +25,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         StockDocumentEntity::class,
         StockDocumentLineEntity::class,
         StockMovementEntity::class,
+        PartyEntity::class,
+        SalesDocumentEntity::class,
+        SalesDocumentLineEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class IamDatabase : RoomDatabase() {
@@ -34,6 +37,7 @@ abstract class IamDatabase : RoomDatabase() {
     abstract fun analyticsDao(): AnalyticsDao
     abstract fun auditDao(): AuditDao
     abstract fun inventoryDao(): InventoryDao
+    abstract fun invoiceDao(): InvoiceDao
 
     companion object {
         /**
@@ -192,13 +196,103 @@ abstract class IamDatabase : RoomDatabase() {
             }
         }
 
+
+        /**
+         * Adds customer/party, sales-order and invoice metadata.
+         *
+         * Confirmed orders link to the existing tentative stock journal. Issuing
+         * an invoice commits that stock document, preserving the existing
+         * Inventory -> Khata transaction and audit boundary.
+         */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS business_parties (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        type TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        phone TEXT NOT NULL,
+                        email TEXT NOT NULL,
+                        address TEXT NOT NULL,
+                        taxId TEXT NOT NULL,
+                        active INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_business_parties_type ON business_parties(type)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_business_parties_name ON business_parties(name)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_business_parties_taxId ON business_parties(taxId)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_business_parties_active ON business_parties(active)")
+
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS sales_documents (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        orderNumber TEXT NOT NULL,
+                        invoiceNumber TEXT,
+                        status TEXT NOT NULL,
+                        partyId INTEGER NOT NULL,
+                        effectiveAt INTEGER NOT NULL,
+                        dueAt INTEGER,
+                        subtotalMinor INTEGER NOT NULL,
+                        discountMinor INTEGER NOT NULL,
+                        taxMinor INTEGER NOT NULL,
+                        totalMinor INTEGER NOT NULL,
+                        amountPaidMinor INTEGER NOT NULL,
+                        stockDocumentId INTEGER,
+                        note TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        FOREIGN KEY(partyId) REFERENCES business_parties(id) ON UPDATE NO ACTION ON DELETE RESTRICT,
+                        FOREIGN KEY(stockDocumentId) REFERENCES stock_documents(id) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                    """.trimIndent(),
+                )
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_sales_documents_orderNumber ON sales_documents(orderNumber)")
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_sales_documents_invoiceNumber ON sales_documents(invoiceNumber)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_sales_documents_status ON sales_documents(status)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_sales_documents_partyId ON sales_documents(partyId)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_sales_documents_effectiveAt ON sales_documents(effectiveAt)")
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_sales_documents_stockDocumentId ON sales_documents(stockDocumentId)")
+
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS sales_document_lines (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        salesDocumentId INTEGER NOT NULL,
+                        productId INTEGER NOT NULL,
+                        description TEXT NOT NULL,
+                        quantityMicros INTEGER NOT NULL,
+                        unitRateMinor INTEGER NOT NULL,
+                        discountMinor INTEGER NOT NULL,
+                        taxRateBasisPoints INTEGER NOT NULL,
+                        taxMinor INTEGER NOT NULL,
+                        lineTotalMinor INTEGER NOT NULL,
+                        FOREIGN KEY(salesDocumentId) REFERENCES sales_documents(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(productId) REFERENCES inventory_products(id) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                    """.trimIndent(),
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_sales_document_lines_salesDocumentId ON sales_document_lines(salesDocumentId)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_sales_document_lines_productId ON sales_document_lines(productId)")
+            }
+        }
+
         fun create(context: Context): IamDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
                 IamDatabase::class.java,
                 "iam_khata.db",
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(
+                    MIGRATION_1_2,
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                )
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
                 .build()
     }
