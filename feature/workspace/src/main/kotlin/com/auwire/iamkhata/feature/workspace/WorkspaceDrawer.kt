@@ -32,6 +32,8 @@ internal fun WorkspaceDrawer(
     onPivot: () -> Unit,
     onImportCsv: () -> Unit,
     onExportCsv: () -> Unit,
+    onExportFilteredCsv: () -> Unit,
+    hasAppliedFilter: Boolean,
     onThemeModeChange: (ThemeMode) -> Unit,
 ) {
     val canEdit = selectedRow != null &&
@@ -94,7 +96,12 @@ internal fun WorkspaceDrawer(
             }
             if (features.importExport) {
                 DrawerAction("Import CSV", onClick = onImportCsv)
-                DrawerAction("Export CSV", onClick = onExportCsv)
+                DrawerAction("Export all CSV", onClick = onExportCsv)
+                DrawerAction(
+                    "Export filtered CSV",
+                    enabled = hasAppliedFilter,
+                    onClick = onExportFilteredCsv,
+                )
             }
 
             ThemeModeSection(
