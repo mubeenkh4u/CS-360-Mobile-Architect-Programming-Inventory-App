@@ -34,6 +34,7 @@ data class WorkspaceUiState(
     val columns: List<DatasetColumn> = emptyList(),
     val page: TablePage = TablePage(emptyList(), 0, 0, DEFAULT_PAGE_SIZE),
     val searchText: String = "",
+    val appliedSearchText: String = "",
     val sort: SortSpec? = null,
     val selectedRowId: Long? = null,
     val busy: Boolean = true,
@@ -62,7 +63,10 @@ class WorkspaceViewModel(
         _state.update { it.copy(searchText = value) }
     }
 
-    fun applySearch() = refresh(offset = 0)
+    fun applySearch() {
+        _state.update { it.copy(appliedSearchText = it.searchText.trim()) }
+        refresh(offset = 0)
+    }
 
     fun clearMessage() {
         _state.update { it.copy(message = null) }
@@ -166,6 +170,20 @@ class WorkspaceViewModel(
         transfer.exportDataset(currentDataset(), output).describe()
     }
 
+    fun exportFilteredCsv(openOutput: () -> OutputStream?) = launchTask(refreshAfter = false) {
+        val state = _state.value
+        val query = state.appliedSearchText.trim()
+        require(query.isNotEmpty()) { "Apply a Khata search filter before exporting filtered rows." }
+
+        val output = requireNotNull(openOutput()) { "Unable to open export file." }
+        transfer.exportDataset(
+            datasetId = currentDataset(),
+            output = output,
+            sort = state.sort,
+            filter = FilterSpec(query),
+        ).describe()
+    }
+
     fun importCsv(openInput: () -> InputStream?) = launchTask(refreshAfter = true) {
         val input = requireNotNull(openInput()) { "Unable to open import file." }
         transfer.importDataset(currentDataset(), input).describe()
@@ -210,7 +228,7 @@ class WorkspaceViewModel(
                 limit = DEFAULT_PAGE_SIZE,
                 offset = offset,
                 sort = state.sort,
-                filter = state.searchText.trim()
+                filter = state.appliedSearchText
                     .takeIf(String::isNotEmpty)
                     ?.let(::FilterSpec),
             )
