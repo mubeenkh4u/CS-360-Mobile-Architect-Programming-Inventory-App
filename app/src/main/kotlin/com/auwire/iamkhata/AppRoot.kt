@@ -3,6 +3,8 @@ package com.auwire.iamkhata
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
@@ -12,6 +14,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.auwire.iamkhata.core.model.ThemeMode
 import com.auwire.iamkhata.core.model.WorkspaceFeatures
@@ -78,13 +82,25 @@ fun AppRoot(
             NavigationBarItem(
                 selected = selected == 0,
                 onClick = { selected = 0 },
-                icon = { Text("K") },
+                icon = {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_tab_khata),
+                        contentDescription = "Khata",
+                        modifier = Modifier.size(24.dp),
+                    )
+                },
                 label = { Text("Khata") },
             )
             NavigationBarItem(
                 selected = selected == 1,
                 onClick = { selected = 1 },
-                icon = { Text("I") },
+                icon = {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_tab_inventory),
+                        contentDescription = "Inventory",
+                        modifier = Modifier.size(24.dp),
+                    )
+                },
                 label = { Text("Inventory") },
             )
         }
