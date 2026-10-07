@@ -4,8 +4,10 @@ import android.content.Context
 import com.auwire.iamkhata.core.data.AndroidKeystoreIntegritySigner
 import com.auwire.iamkhata.core.data.DatasetRepository
 import com.auwire.iamkhata.core.data.InventoryRepository
+import com.auwire.iamkhata.core.data.InvoiceRepository
 import com.auwire.iamkhata.core.data.RoomDatasetRepository
 import com.auwire.iamkhata.core.data.RoomInventoryRepository
+import com.auwire.iamkhata.core.data.RoomInvoiceRepository
 import com.auwire.iamkhata.core.database.IamDatabase
 import com.auwire.iamkhata.core.model.InventoryPolicy
 
@@ -31,5 +33,11 @@ class AppContainer(
         database = database,
         signer = signer,
         policy = inventoryPolicy,
+    )
+
+    val invoiceRepository: InvoiceRepository = RoomInvoiceRepository(
+        database = database,
+        signer = signer,
+        inventoryRepository = inventoryRepository,
     )
 }

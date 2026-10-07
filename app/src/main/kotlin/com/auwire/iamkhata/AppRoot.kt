@@ -22,6 +22,9 @@ import com.auwire.iamkhata.core.model.WorkspaceFeatures
 import com.auwire.iamkhata.feature.inventory.InventoryScreen
 import com.auwire.iamkhata.feature.inventory.InventoryViewModel
 import com.auwire.iamkhata.feature.inventory.InventoryViewModelFactory
+import com.auwire.iamkhata.feature.invoice.InvoiceScreen
+import com.auwire.iamkhata.feature.invoice.InvoiceViewModel
+import com.auwire.iamkhata.feature.invoice.InvoiceViewModelFactory
 import com.auwire.iamkhata.feature.workspace.WorkspaceScreen
 import com.auwire.iamkhata.feature.workspace.WorkspaceViewModel
 import com.auwire.iamkhata.feature.workspace.WorkspaceViewModelFactory
@@ -56,6 +59,16 @@ fun AppRoot(
     val inventoryViewModel: InventoryViewModel = viewModel(
         factory = InventoryViewModelFactory(container.inventoryRepository),
     )
+    val invoiceViewModel: InvoiceViewModel? = if (BuildConfig.FEATURE_INVOICES) {
+        viewModel(
+            factory = InvoiceViewModelFactory(
+                container.invoiceRepository,
+                container.inventoryRepository,
+            ),
+        )
+    } else {
+        null
+    }
     var selected by rememberSaveable { mutableIntStateOf(0) }
 
     Column(Modifier.fillMaxSize()) {
@@ -68,10 +81,16 @@ fun AppRoot(
                     onThemeModeChange = onThemeModeChange,
                 )
 
-                else -> InventoryScreen(
+                1 -> InventoryScreen(
                     viewModel = inventoryViewModel,
                     tentativeStockEnabled = BuildConfig.FEATURE_TENTATIVE_STOCK,
                     importExportEnabled = BuildConfig.FEATURE_IMPORT_EXPORT,
+                    themeMode = themeMode,
+                    onThemeModeChange = onThemeModeChange,
+                )
+
+                else -> InvoiceScreen(
+                    viewModel = requireNotNull(invoiceViewModel),
                     themeMode = themeMode,
                     onThemeModeChange = onThemeModeChange,
                 )
@@ -103,6 +122,20 @@ fun AppRoot(
                 },
                 label = { Text("Inventory") },
             )
+            if (BuildConfig.FEATURE_INVOICES) {
+                NavigationBarItem(
+                    selected = selected == 2,
+                    onClick = { selected = 2 },
+                    icon = {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_tab_invoices),
+                            contentDescription = "Invoices",
+                            modifier = Modifier.size(24.dp),
+                        )
+                    },
+                    label = { Text("Invoices") },
+                )
+            }
         }
     }
 }

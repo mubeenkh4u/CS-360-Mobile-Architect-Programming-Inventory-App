@@ -40,12 +40,13 @@ android {
         applicationId = "com.auwire.iamkhata"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "6.2.2"
+        versionCode = 17
+        versionName = "6.3.0-alpha1"
 
         buildConfigField("boolean", "FEATURE_CLEANING", "true")
         buildConfigField("boolean", "FEATURE_PIVOT", "true")
         buildConfigField("boolean", "FEATURE_INVENTORY", "true")
+        buildConfigField("boolean", "FEATURE_INVOICES", "true")
         buildConfigField("boolean", "FEATURE_TENTATIVE_STOCK", "true")
         buildConfigField("boolean", "ALLOW_NEGATIVE_COMMITTED_STOCK", "false")
         buildConfigField("boolean", "FEATURE_SCREENSHOT_PROTECTION", "true")
@@ -101,6 +102,7 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":feature:workspace"))
     implementation(project(":feature:inventory"))
+    implementation(project(":feature:invoice"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

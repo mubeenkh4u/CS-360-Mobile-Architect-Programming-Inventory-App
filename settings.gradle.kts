@@ -23,4 +23,5 @@ include(
     ":core:ui",
     ":feature:workspace",
     ":feature:inventory",
+    ":feature:invoice",
 )
