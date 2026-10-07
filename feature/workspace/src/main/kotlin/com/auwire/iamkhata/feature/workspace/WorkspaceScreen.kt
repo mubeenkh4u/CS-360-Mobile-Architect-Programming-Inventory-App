@@ -38,6 +38,9 @@ import com.auwire.iamkhata.core.model.ThemeMode
 import com.auwire.iamkhata.core.model.WorkspaceFeatures
 import com.auwire.iamkhata.core.model.displayState
 import com.auwire.iamkhata.core.ui.AuwireTopBar
+import com.auwire.iamkhata.core.ui.ContentViewLayout
+import com.auwire.iamkhata.core.ui.ViewLayoutPreferenceKey
+import com.auwire.iamkhata.core.ui.rememberPersistentContentViewLayout
 import kotlinx.coroutines.launch
 
 @Composable
@@ -53,6 +56,10 @@ fun WorkspaceScreen(
     val context = LocalContext.current
     val drawerState = androidx.compose.material3.rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val viewLayout = rememberPersistentContentViewLayout(
+        preferenceKey = ViewLayoutPreferenceKey.KHATA,
+        defaultValue = ContentViewLayout.TABLE,
+    )
 
     var addColumnOpen by remember { mutableStateOf(false) }
     var editorOpen by remember { mutableStateOf(false) }
@@ -61,7 +68,6 @@ fun WorkspaceScreen(
     var reverseOpen by remember { mutableStateOf(false) }
     var cleanOpen by remember { mutableStateOf(false) }
     var pivotOpen by remember { mutableStateOf(false) }
-    var cardView by remember { mutableStateOf(false) }
     var exportFiltered by remember { mutableStateOf(false) }
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -189,14 +195,14 @@ fun WorkspaceScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     FilterChip(
-                        selected = !cardView,
-                        onClick = { cardView = false },
-                        label = { Text("Table") },
+                        selected = viewLayout.value == ContentViewLayout.CARDS,
+                        onClick = { viewLayout.select(ContentViewLayout.CARDS) },
+                        label = { Text("Cards") },
                     )
                     FilterChip(
-                        selected = cardView,
-                        onClick = { cardView = true },
-                        label = { Text("Cards") },
+                        selected = viewLayout.value == ContentViewLayout.TABLE,
+                        onClick = { viewLayout.select(ContentViewLayout.TABLE) },
+                        label = { Text("Table") },
                     )
                 }
 
@@ -224,7 +230,7 @@ fun WorkspaceScreen(
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
 
-                if (cardView) {
+                if (viewLayout.value == ContentViewLayout.CARDS) {
                     androidx.compose.foundation.lazy.LazyColumn(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp),

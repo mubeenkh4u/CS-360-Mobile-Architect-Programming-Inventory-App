@@ -40,6 +40,9 @@ import com.auwire.iamkhata.core.model.StockDocumentKind
 import com.auwire.iamkhata.core.model.StockSnapshot
 import com.auwire.iamkhata.core.model.ThemeMode
 import com.auwire.iamkhata.core.ui.AuwireTopBar
+import com.auwire.iamkhata.core.ui.ContentViewLayout
+import com.auwire.iamkhata.core.ui.ViewLayoutPreferenceKey
+import com.auwire.iamkhata.core.ui.rememberPersistentContentViewLayout
 import kotlinx.coroutines.launch
 
 /** Inventory workspace integrated with the canonical Khata ledger. */
@@ -56,12 +59,15 @@ fun InventoryScreen(
     val context = LocalContext.current
     val drawerState = androidx.compose.material3.rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val viewLayout = rememberPersistentContentViewLayout(
+        preferenceKey = ViewLayoutPreferenceKey.INVENTORY,
+        defaultValue = ContentViewLayout.CARDS,
+    )
 
     var addProductOpen by remember { mutableStateOf(false) }
     var adjustOpen by remember { mutableStateOf(false) }
     var saleOpen by remember { mutableStateOf(false) }
     var purchaseOpen by remember { mutableStateOf(false) }
-    var cardView by remember { mutableStateOf(true) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/csv"),
@@ -143,13 +149,13 @@ fun InventoryScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     FilterChip(
-                        selected = cardView,
-                        onClick = { cardView = true },
+                        selected = viewLayout.value == ContentViewLayout.CARDS,
+                        onClick = { viewLayout.select(ContentViewLayout.CARDS) },
                         label = { Text("Cards") },
                     )
                     FilterChip(
-                        selected = !cardView,
-                        onClick = { cardView = false },
+                        selected = viewLayout.value == ContentViewLayout.TABLE,
+                        onClick = { viewLayout.select(ContentViewLayout.TABLE) },
                         label = { Text("Table") },
                     )
                 }
@@ -164,7 +170,7 @@ fun InventoryScreen(
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
 
-                if (cardView) {
+                if (viewLayout.value == ContentViewLayout.CARDS) {
                     LazyColumn(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
