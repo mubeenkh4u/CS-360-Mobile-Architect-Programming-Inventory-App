@@ -58,7 +58,7 @@ class RoomInvoiceRepository(
 
     override fun observeSalesDocuments(): Flow<List<SalesDocument>> =
         invoiceDao.observeSalesDocuments().map { rows ->
-            rows.map(SalesDocumentProjection::toModel)
+            rows.map { it.toModel() }
         }
 
     override suspend fun createParty(
